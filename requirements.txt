@@ -1,0 +1,5 @@
+flask
+pillow
+requests
+python-dotenv
+waitress
