@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: neocities
+Version: 0.1.0
+Summary: Python API for NeoCities.org
+License: LGPLv3
+Classifier: Topic :: InternetOperating System :: OS Independent
+Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
+License-File: LICENSE
