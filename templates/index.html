@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>NeoGallery v1.0</title>
+  <style>
+  
+	#titleField::placeholder,
+    #descriptionField::placeholder {
+      color: #999;
+    }
+    .hidden {
+      display: none !important;
+    }
+    body { 
+	font-family: sans-serif; margin: 20px;
+	background-color: gray;
+	}
+    #drop-area {
+      width: 300px; height: 120px; border: 2px dashed #ccc;
+      border-radius: 10px; text-align: center; line-height: 120px;
+      color: #aaa; margin-bottom: 1rem; cursor: pointer;
+    }
+    #drop-area.hover { border-color: #00f; }
+    #preview { max-width: 300px; display: block; margin-bottom: 10px; }
+    .hidden-file-input { display: none; }
+    label { display: block; margin-top: 0.5rem; }
+    #tagsContainer {
+      margin-top: 1rem; padding: 0.5rem; border: 1px solid #ccc; background: #fafafa;
+    }
+    .tagCheckbox { margin-right: 0.5rem; }
+    #manageArtSection {
+      margin-top: 1rem;
+      border-top: 2px solid #ccc;
+    }
+	#tagsListContainer{
+	  margin: 1rem 0;
+	  padding: 1rem;
+	  
+      border: 1px solid #ccc;
+      background-color: LightGray;
+      max-width: 500px;
+	  width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+	}
+    .art-entry {
+      border: 1px solid #ddd;
+      padding: 1rem;
+      margin: 1rem 0;
+      display: flex;
+      gap: 1rem;
+      align-items: start;
+    }
+    .art-entry img {
+      flex-shrink: 0;
+    }
+    .art-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 0.5rem;
+    }
+	.modal-content {
+	  background-color: LightGray;
+	  margin: auto; /* Changed from 15% auto */
+	  padding: 20px;
+	  border: 1px solid #888;
+	  width: 80%;
+	  max-width: 500px;
+	  position: relative;
+
+	  box-shadow: 0 0 20px rgba(0,0,0,0.2); /* Optional: match other modals */
+	}
+    .art-actions button {
+        padding: 5px 10px;
+        background: #f0f0f0;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+    .art-actions button:hover {
+        background: #e0e0e0;
+    }
+    #paginationControls {
+      margin-top: 1rem;
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    .page-btn {
+      padding: 5px 10px;
+      background: #f0f0f0;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .page-btn:disabled {
+      background: #ddd;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+    .page-btn.active {
+      background: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.4);
+    }
+    .modal-content {
+      background-color: LightGray;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 500px;
+      position: relative;
+    }
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close:hover {
+      color: black;
+    }
+	.headers{
+	  margin-top: 0px;
+	}
+	.box {
+	  display: flex;
+	  width: 100%;
+	  align-items: flex-start; /* Ensures both flex children stay the same height */
+	}
+
+	#flex {
+	  width: 50vw; /* Forces each section to always take up 50% of the screen width */
+	  min-height: 100%; /* Makes sure it stretches fully even if one has less content */
+	  margin: 0; /* Removes margin so it perfectly fits */
+	  display: flex;
+	  flex-direction: column;
+	  align-items: center;
+	  justify-content: flex-start;
+	  overflow: hidden; /* Prevents content from shifting the height */
+	}
+
+  </style>
+</head>
+<body>
+
+<div class="box"> 
+<center>
+  
+  <div id="flex">
+	 <h1 class="headers">Upload Media</h1>
+
+    <div id="drop-area">Drag & Drop Image Here (or click)</div>
+    <input type="file" id="fileInput" class="hidden-file-input" accept="image/*" required>
+
+    <img id="preview" src="" alt="No preview yet." />
+
+    <!-- Modified title and description fields with placeholders -->
+    <input type="text" id="titleField" required placeholder="Title" class="hidden"><br>
+    <textarea id="descriptionField" rows="3" cols="40" placeholder="Description" class="hidden"></textarea>
+
+    <!-- Tags container and upload button start hidden -->
+    <div id="tagsContainer" class="hidden">
+      <p><b>Select Tags:</b></p>
+    </div>
+
+    <button id="uploadBtn" class="hidden">Upload</button>
+  </div>
+</center>
+
+
+<!-- Manage Tags Section -->
+<div id="flex">
+  <h1 class="headers">Manage Tags</h1>
+  <div id="tagsListContainer"></div>
+</div>
+</div>
+<!-- Add new tag modal -->
+<div id="addTagModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closeAddTagModal()">&times;</span>
+	<center>
+    <h2>Create New Tag</h2>
+    <form id="addTagForm">
+	    <label>Tag:<br>
+        <input type="text" id="addTagName" required  placeholder="" style="margin:0px;">
+		</label>
+		<label>Meta Description<br>
+        <input type="text" id="addMetaDesc" required  placeholder="" style="margin:0px;">
+		</label>
+		<label>Tab Title:<br>
+        <input type="text" id="addPageTitle" required placeholder="" style="margin:0px;">
+		</label>
+		<label>Tag Link Title<br>
+        <input type="text" id="addLinkTitle" required  placeholder="" style="margin:0px;">
+		</label>
+      <div style="margin-top: 1rem;">
+        <button type="submit">Create Tag</button>
+        <button type="button" onclick="closeAddTagModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+  </center>
+</div>
+
+<!-- Manage Art Section -->
+<div id="manageArtSection">
+  <center><h1 class="headers">Manage Gallery</h1></center>
+  <div id="artEntriesContainer"></div>
+  <div id="paginationControls"></div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="modal">
+ <div class="modal-content">
+
+<span class="close" onclick="closeEditModal()">&times;</span>
+
+  <center>
+  <h2>Edit Media</h2>
+  <form id="editForm">
+    <input type="hidden" id="editOriginalSrc">
+    <label>Title:<br>
+      <input type="text" id="editTitle" required>
+    </label>
+    <label>Description:<br>
+      <textarea id="editDescription" rows="3" style="width:300px;"></textarea>
+    </label>
+    <div id="editTagsContainer">
+      <p><b>Select Tags:</b></p>
+      <!--dynamically create checkboxes here-->
+    </div>
+    <div style="margin-top: 1rem;">
+      <button type="submit">Save Changes</button>
+      <button type="button" onclick="closeEditModal()">Cancel</button>
+    </div>
+  </form>
+  </center>
+</div>
+</div>
+
+<!-- Edit Tag Modal -->
+<div id="editTagModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closeEditTagModal()">&times;</span>
+	<center>
+    <h2>Edit Tag</h2>
+    <form id="editTagForm">
+      <input type="hidden" id="editOldTagName">
+      <label>Tag:<br>
+        <input type="text" id="editTagName" required  placeholder="" style="margin:0px;">
+      </label>
+      <label>Meta Description:<br>
+        <input type="text" id="editMetaDesc" required  placeholder="" style="margin:0px;">
+      </label>
+      <label>Tab Title:<br>
+        <input type="text" id="editPageTitle" required  placeholder="" style="margin:0px;">
+      </label>
+      <label>Tag Link Title:<br>
+        <input type="text" id="editLinkTitle" required  placeholder="" style="margin:0px;">
+      </label>
+      <div style="margin-top: 1rem;">
+        <button type="submit">Save Changes</button>
+        <button type="button" onclick="closeEditTagModal()">Cancel</button>
+      </div>
+    </form>
+	</center>
+  </div>
+</div>
+
+<script>
+  // ========== DRAG & DROP + PREVIEW ==========
+  const dropArea = document.getElementById('drop-area');
+  const fileInput = document.getElementById('fileInput');
+  const previewImg = document.getElementById('preview');
+
+  dropArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropArea.classList.add('hover');
+  });
+  dropArea.addEventListener('dragleave', () => {
+    dropArea.classList.remove('hover');
+  });
+  dropArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropArea.classList.remove('hover');
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      showPreview(e.dataTransfer.files[0]);
+    }
+  });
+  dropArea.addEventListener('click', () => {
+    fileInput.click();
+  });
+
+  function showPreview(file) {
+    const reader = new FileReader();
+    reader.onload = e => { 
+      previewImg.src = e.target.result;
+      // Show form elements when image is loaded
+      document.getElementById('titleField').classList.remove('hidden');
+      document.getElementById('descriptionField').classList.remove('hidden');
+      document.getElementById('tagsContainer').classList.remove('hidden');
+      document.getElementById('uploadBtn').classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+  }
+  fileInput.addEventListener('change', e => {
+    if (e.target.files.length) showPreview(e.target.files[0]);
+  });
+
+  // ========== FETCH TAGS -> CHECKBOXES FOR UPLOAD ==========
+  const tagsContainer = document.getElementById('tagsContainer');
+  fetch('/tags')
+    .then(resp => resp.json())
+    .then(data => {
+      const tags = data.tags || [];
+      const randomTag = data.randomTag || "";
+
+      if (tags.length === 0) {
+        tagsContainer.innerHTML = "<p>No tags exist yet!</p>";
+        return;
+      }
+
+      let html = "";
+      tags.forEach(t => {
+        html += `
+          <label style="display:inline-block;margin-right:1rem;">
+            <input type="checkbox" class="tagCheckbox" value="${t}"> ${t}
+          </label>
+        `;
+      });
+
+      // Only show the "randomTag" checkbox if there's at least one tag
+      if (randomTag) {
+        html += `
+          <label style="display:inline-block;margin-right:1rem;">
+            <input type="checkbox" class="tagCheckbox" value="${randomTag}"> ${randomTag}
+          </label>
+        `;
+      }
+
+      tagsContainer.insertAdjacentHTML('beforeend', html);
+    });
+
+  // ========== UPLOAD ART ==========
+  const uploadBtn = document.getElementById('uploadBtn');
+  uploadBtn.addEventListener('click', () => {
+    const titleVal = document.getElementById('titleField').value.trim();
+    const descVal = document.getElementById('descriptionField').value.trim();
+
+    let chosenTags = [];
+    document.querySelectorAll('.tagCheckbox').forEach(chk => {
+      if (chk.checked) chosenTags.push(chk.value);
+    });
+
+    if (!fileInput.files.length) {
+      alert("No image selected!");
+      return;
+    }
+
+    const confirmMsg =
+      `Upload art titled: "${titleVal}"?\n` +
+      `Description: ${descVal}\n` +
+      `Tags: ${chosenTags.join(", ")}\n\nContinue?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    const formData = new FormData();
+    formData.append("image", fileInput.files[0]);
+    formData.append("title", titleVal);
+    formData.append("description", descVal);
+    formData.append("chosen_tags", chosenTags.join(","));
+
+    fetch('/upload', {
+      method: 'POST',
+      body: formData
+    })
+      .then(res => res.text())
+      .then(msg => {
+        alert(msg);
+        // Clear form and hide elements
+        fileInput.value = "";
+        previewImg.src = "";
+        document.getElementById('titleField').value = "";
+        document.getElementById('descriptionField').value = "";
+        document.querySelectorAll('.tagCheckbox').forEach(chk => chk.checked = false);
+        
+        // Hide form elements after upload
+        document.getElementById('titleField').classList.add('hidden');
+        document.getElementById('descriptionField').classList.add('hidden');
+        document.getElementById('tagsContainer').classList.add('hidden');
+        document.getElementById('uploadBtn').classList.add('hidden');
+        
+        location.reload();
+      })
+      .catch(err => alert("Error uploading: " + err));
+  });
+
+
+  // ========== TAG MODALS ==========
+  function openAddTagModal() {
+    document.getElementById('addTagModal').style.display = 'block';
+  }
+  function closeAddTagModal() {
+    document.getElementById('addTagModal').style.display = 'none';
+  }
+
+  document.getElementById('addTagForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const tagData = {
+      tagName: document.getElementById('addTagName').value.trim(),
+      metaDesc: document.getElementById('addMetaDesc').value.trim(),
+      pageTitle: document.getElementById('addPageTitle').value.trim(),
+      linkTitle: document.getElementById('addLinkTitle').value.trim()
+    };
+
+    if (!Object.values(tagData).every(Boolean)) {
+      alert('All fields are required!');
+      return;
+    }
+
+    const confirmMsg = `Create new tag:\n` +
+      `Tag: ${tagData.tagName}\n` +
+      `Meta Desc: ${tagData.metaDesc}\n` +
+      `Tab Title: ${tagData.pageTitle}\n` +
+      `Link Title: ${tagData.linkTitle}\n\nContinue?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    fetch('/create_tag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(tagData)
+    })
+      .then(res => res.text())
+      .then(msg => {
+        alert(msg);
+        document.getElementById('addTagForm').reset();
+        closeAddTagModal();
+        location.reload();
+      })
+      .catch(err => alert('Error creating tag: ' + err));
+  });
+
+  // Close modals on backdrop click
+  window.onclick = function(event) {
+    const modals = ['editTagModal', 'addTagModal', 'editModal'];
+    modals.forEach(modalId => {
+      const modal = document.getElementById(modalId);
+      if (event.target === modal) {
+        modal.style.display = 'none';
+      }
+    });
+  };
+
+  // ========== ART MANAGEMENT & PAGINATION ==========
+  let currentPage = 1;
+  function loadArtEntries(page = 1) {
+    fetch(`/all_art?page=${page}&per_page=10`)
+      .then(resp => resp.json())
+      .then(data => {
+        currentPage = data.currentPage;
+        renderArtEntries(data.artEntries);
+        renderPagination(data.totalPages, currentPage);
+      });
+  }
+
+  function renderArtEntries(entries) {
+    const container = document.getElementById('artEntriesContainer');
+    container.innerHTML = '';
+
+    entries.forEach(entry => {
+      const entryDiv = document.createElement('div');
+      entryDiv.className = 'art-entry';
+      entryDiv.innerHTML = `
+        <img src="${entry.thumbnailSrc}" width="100">
+        <div>
+          <h3>${entry.title}</h3>
+          <p>${entry.description}</p>
+          <p>Tags: ${entry.tags.join(', ')}</p>
+        </div>
+        <div class="art-actions">
+          <button class="editBtn" data-src="${entry.fullSrc}">Edit</button>
+          <button class="deleteBtn" data-src="${entry.fullSrc}">Delete</button>
+        </div>
+      `;
+      container.appendChild(entryDiv);
+    });
+
+    document.querySelectorAll('.deleteBtn').forEach(btn => {
+      btn.addEventListener('click', handleDelete);
+    });
+
+    document.querySelectorAll('.editBtn').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const fullSrc = this.dataset.src;
+        const entry = entries.find(e => e.fullSrc === fullSrc);
+        if (entry) openEditModal(entry);
+      });
+    });
+  }
+
+  function renderPagination(totalPages, currentPage) {
+    const controls = document.getElementById('paginationControls');
+    let html = `
+      <button class="page-btn prev-btn" ${currentPage === 1 ? 'disabled' : ''}>
+        ← Previous
+      </button>
+    `;
+    for (let i = 1; i <= totalPages; i++) {
+      html += `
+        <button class="page-btn ${i === currentPage ? 'active' : ''}" 
+          data-page="${i}" ${i === currentPage ? 'disabled' : ''}>
+          ${i}
+        </button>
+      `;
+    }
+    html += `
+      <button class="page-btn next-btn" ${currentPage === totalPages ? 'disabled' : ''}>
+        Next →
+      </button>
+    `;
+    controls.innerHTML = html;
+
+    controls.querySelector('.prev-btn').addEventListener('click', () => {
+      if (currentPage > 1) loadArtEntries(currentPage - 1);
+    });
+    controls.querySelector('.next-btn').addEventListener('click', () => {
+      if (currentPage < totalPages) loadArtEntries(currentPage + 1);
+    });
+    controls.querySelectorAll('[data-page]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        loadArtEntries(parseInt(btn.dataset.page));
+      });
+    });
+  }
+
+  function handleDelete() {
+    const fullSrc = this.dataset.src;
+    if (confirm(`Permanently delete "${fullSrc}"?\nThis cannot be undone!`)) {
+      fetch('/delete_art', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullSrc })
+      })
+      .then(resp => resp.json())
+      .then(data => {
+        alert(data.message);
+        loadArtEntries(currentPage);
+      });
+    }
+  }
+
+  // ========== EDIT MODAL ==========
+  function openEditModal(entry) {
+    document.getElementById('editOriginalSrc').value = entry.fullSrc;
+    document.getElementById('editTitle').value = entry.title;
+    document.getElementById('editDescription').value = entry.description;
+
+    // Rebuild the tag checkboxes from the *already existing* .tagCheckbox elements in the DOM?
+    // Alternatively, we can do a new fetch /tags, just like we do for the upload form.
+    // For simplicity, let's do a "fresh" build each time based on the same tags the user has.
+    const editTagsContainer = document.getElementById('editTagsContainer');
+    editTagsContainer.innerHTML = '<p><b>Select Tags:</b></p>';
+
+    // Let's just re-use the same fetch approach so we always have an up-to-date tag list:
+    fetch('/tags')
+      .then(resp => resp.json())
+      .then(data => {
+        const tags = data.tags || [];
+        const randomTag = data.randomTag || "";
+        const currentTags = new Set(entry.tags);
+
+        if (tags.length === 0) {
+          editTagsContainer.insertAdjacentHTML('beforeend', "<p>No tags exist yet!</p>");
+        } else {
+          let html = "";
+          tags.forEach(t => {
+            const checked = currentTags.has(t) ? "checked" : "";
+            html += `
+              <label style="display:inline-block;margin-right:1rem;">
+                <input type="checkbox" class="editTagCheckbox" value="${t}" ${checked}> ${t}
+              </label>
+            `;
+          });
+          if (randomTag) {
+            const randomChecked = currentTags.has(randomTag) ? "checked" : "";
+            html += `
+              <label style="display:inline-block;margin-right:1rem;">
+                <input type="checkbox" class="editTagCheckbox" value="${randomTag}" ${randomChecked}> ${randomTag}
+              </label>
+            `;
+          }
+          editTagsContainer.insertAdjacentHTML('beforeend', html);
+        }
+      });
+
+    // Show modal
+    document.getElementById('editModal').style.display = 'block';
+  }
+
+  function closeEditModal() {
+    document.querySelector('.modal-backdrop')?.remove();
+    document.getElementById('editModal').style.display = 'none';
+  }
+  document.getElementById('editModal').addEventListener('click', function(e) {
+    if (e.target === this) { // Checks if click is on the modal background
+		closeEditModal();
+  }
+  });
+  document.getElementById('editForm').addEventListener('submit', e => {
+    e.preventDefault();
+
+    const updateData = {
+      originalSrc: document.getElementById('editOriginalSrc').value,
+      title: document.getElementById('editTitle').value,
+      description: document.getElementById('editDescription').value,
+      tags: Array.from(document.querySelectorAll('#editTagsContainer input:checked'))
+        .map(chk => chk.value)
+    };
+
+    if (!updateData.title.trim()) {
+      alert('Title is required!');
+      return;
+    }
+
+    if (confirm('Save changes to this artwork?')) {
+      fetch('/edit_art', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      })
+      .then(resp => resp.json())
+      .then(data => {
+        alert(data.message);
+        closeEditModal();
+        loadArtEntries(currentPage);
+      });
+    }
+  });
+
+  // ========== TAG MANAGEMENT ==========
+  function openEditTagModal() {
+    document.getElementById('editTagModal').style.display = 'block';
+  }
+  function closeEditTagModal() {
+    document.getElementById('editTagModal').style.display = 'none';
+  }
+
+  document.getElementById('editTagForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const formData = {
+      oldTagName: document.getElementById('editOldTagName').value,
+      newTagName: document.getElementById('editTagName').value.trim(),
+      metaDesc: document.getElementById('editMetaDesc').value.trim(),
+      pageTitle: document.getElementById('editPageTitle').value.trim(),
+      linkTitle: document.getElementById('editLinkTitle').value.trim()
+    };
+
+    if (!Object.values(formData).every(Boolean)) {
+      alert('All fields are required!');
+      return;
+    }
+
+    fetch('/edit_tag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
+    })
+    .then(resp => resp.json())
+    .then(data => {
+      alert(data.message);
+      closeEditTagModal();
+      location.reload();
+    })
+    .catch(err => alert('Error updating tag: ' + err));
+  });
+
+  function populateTagManagement(tags) {
+    const container = document.getElementById('tagsListContainer');
+    container.innerHTML = '';
+
+    if (!tags.length) {
+      container.innerHTML = '<p>No tags exist yet</p>';
+    } else {
+      tags.forEach(tag => {
+        const tagDiv = document.createElement('div');
+        tagDiv.style.display = 'flex';
+        tagDiv.style.justifyContent = 'space-between';
+        tagDiv.style.alignItems = 'center';
+        tagDiv.style.padding = '1.2rem';
+        tagDiv.style.borderBottom = '1px solid #eee';
+        tagDiv.innerHTML = `
+          <span>${tag}</span>
+          <div>
+            <button class="editTagBtn" data-tag="${tag}" 
+              style="margin-right: 0.5rem; padding: 5px 10px; 
+              background: #f0f0f0; border: 1px solid #ccc; 
+              border-radius: 3px; cursor: pointer;"
+              onmouseover="this.style.backgroundColor='#e0e0e0'" 
+              onmouseout="this.style.backgroundColor='#f0f0f0'">
+              Edit
+            </button>
+            <button class="deleteTagBtn" data-tag="${tag}" 
+              style="padding: 5px 10px; 
+              background: #f0f0f0; border: 1px solid #ccc; 
+              border-radius: 3px; cursor: pointer;"
+              onmouseover="this.style.backgroundColor='#e0e0e0'" 
+              onmouseout="this.style.backgroundColor='#f0f0f0'">
+              Delete
+            </button>
+          </div>
+        `;
+        container.appendChild(tagDiv);
+      });
+    }
+
+    const addTagBtn = document.createElement('button');
+    addTagBtn.id = 'addTagBtn';
+    addTagBtn.textContent = 'Add Tag';
+    addTagBtn.style.padding = '5px 5px';
+    addTagBtn.style.marginTop = '10px';
+    addTagBtn.style.background = '#f0f0f0';
+    addTagBtn.style.border = '1px solid #ccc';
+    addTagBtn.style.borderRadius = '3px';
+    addTagBtn.style.cursor = 'pointer';
+    addTagBtn.onmouseover = function() { this.style.backgroundColor = '#e0e0e0'; };
+    addTagBtn.onmouseout = function() { this.style.backgroundColor = '#f0f0f0'; };
+    addTagBtn.addEventListener('click', openAddTagModal);
+
+    const addTagBtnWrapper = document.createElement('div');
+    addTagBtnWrapper.style.display = 'flex';
+    addTagBtnWrapper.style.justifyContent = 'center';
+    addTagBtnWrapper.appendChild(addTagBtn);
+    container.appendChild(addTagBtnWrapper);
+
+    document.querySelectorAll('.deleteTagBtn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const tagName = this.dataset.tag;
+        if (confirm(`Permanently delete tag "${tagName}"?\nThis will remove it from all art entries and navigation!`)) {
+          fetch('/delete_tag', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tagName })
+          })
+          .then(res => res.json())
+          .then(data => {
+            alert(data.message);
+            location.reload();
+          })
+          .catch(err => alert('Delete failed: ' + err));
+        }
+      });
+    });
+
+    document.querySelectorAll('.editTagBtn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const tagName = this.dataset.tag;
+        fetch(`/get_tag/${tagName}`)
+	  .then(resp => {
+		if (!resp.ok) {
+		  return resp.json().then(err => Promise.reject(err.error));
+		}
+		return resp.json();
+	  })
+          .then(data => {
+            if (data.error) {
+              alert(`Warning: ${data.error}. Some fields may be empty.`);
+            }
+            document.getElementById('editOldTagName').value = data.tagName;
+            document.getElementById('editTagName').value = data.tagName;
+            document.getElementById('editMetaDesc').value = data.metaDesc;
+            document.getElementById('editPageTitle').value = data.pageTitle;
+            document.getElementById('editLinkTitle').value = data.linkTitle;
+            document.getElementById('editTagModal').style.display = 'block';
+          })
+          .catch(err => {
+            alert('Error loading tag: ' + err);
+          });
+      });
+    });
+  }
+
+  // After page loads, fetch tags for the Tag Management UI
+  fetch('/tags')
+    .then(resp => resp.json())
+    .then(data => {
+      const tags = data.tags || [];
+      populateTagManagement(tags);
+    });
+
+  // Finally, load art entries initially
+  loadArtEntries();
+</script>
+</body>
+</html>
