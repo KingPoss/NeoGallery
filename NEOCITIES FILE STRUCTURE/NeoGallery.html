@@ -39,6 +39,10 @@
 <h1 class="header">NeoGallery Example</h1>
 
 <center><a id="reshuffle">Random Selection, by default loads 6 random entries. id="reshuffle" will make an element reshuffle it. Click me.</a></center>
+
+
+
+<!--if you want to add a new gallery item on your page, add everything between this comment, and the one that states 'snippet end'-->
 <div class="gallery" data-tag="random">
 <!--galleryLoader shows while gallery items are parsed from the media json-->
     <div class="galleryLoader" >
@@ -48,24 +52,6 @@
         </div>
     </div>
 </div>
-
-<center><h1>Multiple galleries can be displayed on the same page if desired.</h1>
-<div class="gallery" data-tag="tagexample1">
-<!--galleryLoader shows while gallery items are parsed from the media json-->
-    <div class="galleryLoader" >
-        <div>
-        <img src="/assets/hourglass.gif" alt="Loading..." >
-        <p>Loading...</p>
-        </div>
-    </div>
-</div>
-
-<div class="tagDirectory">
-
-<!--END-->
-
-</div>
-</center>
 <!--myModal shows when an image is clicked-->
 <div id="myModal" class="modal">
     <span class="close">&times;</span>
@@ -74,7 +60,20 @@
     <div id="title"></div>
      <div id="caption"></div>
 </div>
+
 <script src="/js/neoGallery.js"></script>
+<!--snippet end-->
+
+
+
+<center>
+<div class="tagDirectory">
+<!--If you wish to add a tag directory, linking to other gallery pages, place the comment END as seen below this one, wherever you want links to begin appearing. It is how NeoGallery determines where to put in the new tag link.-->
+<!--END-->
+
+</div>
+</center>
+
 
 </body>
 </html>
