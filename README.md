@@ -1,7 +1,7 @@
 # NeoGallery - A gallery management solution for Neocities
 
 NeoGallery is a Flask-based application that manages image uploads, thumbnail generation, tagging, and synchronizing these assets to your neocities site via the neocities API. It provides a web interface for uploading new images, associating tags, managing tags, and editing or deleting existing media. It comes with a gallery template that is repsonsive and works well on both desktop and mobile.
-![NeoGallery Example Photo]([https://imgur.com/a/WYAWNtX](https://i.imgur.com/mjuKiro.png))
+![NeoGallery Example Photo](https://i.imgur.com/mjuKiro.png)
 ### Key Features
 
 1.  **Image Uploading & Thumbnail Generation**
