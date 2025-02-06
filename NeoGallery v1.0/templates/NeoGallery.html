@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Traditional and digital art gallery">
+<title>NeoGallery Example</title> <!--Tab Title-->
+<link href="/css/gallery.css" rel="stylesheet" type="text/css" media="all" > 
+
+</head>
+
+<style>
+    body{
+     background-color: grey;  
+    }
+    .header{
+        text-align: center;
+    }
+    .tagDirectory{
+        text-align: center;
+        justify-content: center;
+        background-color: darkslategray;
+        max-width: 800PX;
+        padding: 10px;
+    }
+    .tagText{
+        background-color: darkgrey;
+        background-size: 120%;
+        font-size: 20px;
+        color: white;
+        padding: 0;
+        margin: 10px;
+    }
+</style>
+
+<body>
+
+
+<h1 class="header">NeoGallery Example</h1>
+
+<center><a id="reshuffle">Random Selection, by default loads 6 random entries. id="reshuffle" will make an element reshuffle it. Click me.</a></center>
+<div class="gallery" data-tag="random">
+<!--galleryLoader shows while gallery items are parsed from the media json-->
+    <div class="galleryLoader" >
+        <div>
+        <img src="/assets/hourglass.gif" alt="Loading..." >
+        <p>Loading...</p>
+        </div>
+    </div>
+</div>
+
+<center><h1>Multiple galleries can be displayed on the same page if desired.</h1>
+<div class="gallery" data-tag="tagexample1">
+<!--galleryLoader shows while gallery items are parsed from the media json-->
+    <div class="galleryLoader" >
+        <div>
+        <img src="/assets/hourglass.gif" alt="Loading..." >
+        <p>Loading...</p>
+        </div>
+    </div>
+</div>
+
+<div class="tagDirectory">
+<!--END-->
+<!--birds-->
+<a href="/birds.html"><p class="tagText">my bird gallery</p></a>
+<!--END-->
+<!--nature-->
+<a href="/nature.html"><p class="tagText">nature gallery</p></a>
+<!--END-->
+<!--microscope-->
+<a href="/microscope.html"><p class="tagText">microscopy gallery</p></a>
+<!--END-->
+<!--TAGISIMO-->
+<a href="/TAGISIMO.html"><p class="tagText">tag tester</p></a>
+<!--END-->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+</center>
+<!--myModal shows when an image is clicked-->
+<div id="myModal" class="modal">
+    <span class="close">&times;</span>
+    <img id="loadingPlaceholder" class="loading" src="/assets/hourglass.gif"></img>
+    <img class="modal-content" id="img01">
+    <div id="title"></div>
+     <div id="caption"></div>
+</div>
+<script src="/js/neoGallery.js"></script>
+
+<!--###### END IMPORTANT CODE ######-->
+
+
+</body>
+</html>
