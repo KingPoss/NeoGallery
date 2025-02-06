@@ -2,6 +2,7 @@
 
 NeoGallery is a Flask-based application that manages image uploads, thumbnail generation, tagging, and synchronizing these assets to your neocities site via the neocities API. It provides a web interface for uploading new images, associating tags, managing tags, and editing or deleting existing media. It comes with a gallery template that is repsonsive and works well on both desktop and mobile.
 ![NeoGallery Example Photo](https://i.imgur.com/mjuKiro.png)
+![NeoGallery Example Video](https://www.youtube.com/watch?v=tZjIDDKAAFg)
 ### Key Features
 
 1.  **Image Uploading & Thumbnail Generation**
@@ -22,9 +23,11 @@ Display gallery entries in lists based on the provided tags. Responsive layout l
 
 2. All libraries listed in `requirements.txt`, use `pip install -r requirements.txt`
 
-3. Your Neocities API key, found under ‘manage site settings’ on Neocities. Generate one, and place in the .env file on the `NEOCITIES_API_KEY` line.
+3. Rename `renameto(.)env` to `.env` in the root of `NeoGallery v.10`
 
-4. By default, your site structure must be the following. You can upload all folders in the `NEOCITIES FILE STRUCTURE` folder for ease of use.This can be can all be changed in the .env if you desire:
+4. Your Neocities API key, found under ‘manage site settings’ on Neocities. Generate one, and place in the .env file on the `NEOCITIES_API_KEY` line.
+
+5. By default, your site structure must be the following. You can upload all folders in the `NEOCITIES FILE STRUCTURE` folder for ease of use.This can be can all be changed in the .env if you desire:
 ```
 │   NeoGallery.html
 ├───assets
