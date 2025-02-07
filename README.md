@@ -20,7 +20,7 @@ Display gallery entries in lists based on the provided tags. Responsive layout l
     
 ### Prerequisites
 
-1. (Skip to step 3 if you are running the executable ver) A patched version of `python-neocities`. The current version has a bug in the delete function on line #79 in `neocities.py` where it uses the get method instead of post, as the neocities API requires. It hasn’t been updated in about 6 years, so I took the liberty of patching it and hosting a copy of it in this repository. Use `python setup.py install` in the `python-neocities-delete-fix` folder to install.
+1. (Skip to step 4 if you are running the executable ver) A patched version of `python-neocities`. The current version has a bug in the delete function on line #79 in `neocities.py` where it uses the get method instead of post, as the neocities API requires. It hasn’t been updated in about 6 years, so I took the liberty of patching it and hosting a copy of it in this repository. Use `python setup.py install` in the `python-neocities-delete-fix` folder to install.
 
 2. All libraries listed in `requirements.txt`, use `pip install -r requirements.txt`
 
