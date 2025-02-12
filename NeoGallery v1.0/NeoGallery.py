@@ -1,4 +1,6 @@
+#!/usr/bin/env python
 import os
+import sys
 import json
 import re
 import neocities
@@ -10,13 +12,31 @@ from PIL import Image, ImageSequence
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from waitress import serve
-load_dotenv()
+
+# ------------------------------------------------------------------------------
+# 1. SET THE BASE DIRECTORY ACCORDING TO THE RUNNING CONTEXT
+#
+# When running normally, use the directory of the source file.
+# When frozen (with PyInstaller), use the current working directory.
+# This way any files that you write (templates, JSON, etc.) are placed
+# in a writable folder, not inside the read-only bundled folder.
+# ------------------------------------------------------------------------------
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(os.getcwd())
+else:
+    BASE_DIR = Path(__file__).parent
+
+# Load environment variables from a .env file located in the working directory.
+load_dotenv(dotenv_path=BASE_DIR / ".env")
 
 # ----------------------- CONFIGURATION -----------------------
 class Config:
+    
     def __init__(self):
-        self.BASE_DIR = Path(__file__).parent
-        
+        # Use the appropriate base directory depending on frozen status.
+        self.BASE_DIR = BASE_DIR
+
+        # Folders and file paths – note that these paths are relative to BASE_DIR.
         self.STATIC_URL_PATH = os.environ.get("STATIC_URL_PATH", "/assets")
         self.STATIC_FOLDER = self.BASE_DIR / os.environ.get("STATIC_FOLDER", "static/assets")
         self.JSON_DIR = self.STATIC_FOLDER / os.environ.get("JSON_SUBDIR", "json")
@@ -33,9 +53,12 @@ class Config:
         self.ART_DIR = self.STATIC_FOLDER / os.environ.get("ART_SUBDIR", "art")
         self.THUMB_DIR = self.STATIC_FOLDER / os.environ.get("THUMB_SUBDIR", "thumbnails")
 
+        # Remote directories for Neocities uploads
         self.NEOCITIES_ART_DIR = os.environ.get("NEOCITIES_ART_DIR", "assets/media")
         self.NEOCITIES_THUMB_DIR = os.environ.get("NEOCITIES_THUMB_DIR", "assets/thumbnails")
         self.NEOCITIES_JSON_DIR = os.environ.get("NEOCITIES_JSON_DIR", "assets/json")
+        self.NEOCITIES_GALLERY_DIR = os.environ.get("NEOCITIES_GALLERY_DIR", "")
+        self.NEOCITIES_TAG_DIR = os.environ.get("NEOCITIES_TAG_DIR", "")
 
         # Neocities credentials
         self.API_KEY = os.environ.get('NEOCITIES_API_KEY')
@@ -54,18 +77,46 @@ class Config:
         # "random" tag name
         self.SHOW_IN_RANDOM = os.environ.get("SHOW_IN_RANDOM", "all")
 
-        # Ensure directory structure
-        self.TEMPLATE_DIR.mkdir(exist_ok=True)
-        self.ART_DIR.mkdir(parents=True, exist_ok=True)
-        self.THUMB_DIR.mkdir(parents=True, exist_ok=True)
-        self.JSON_DIR.mkdir(parents=True, exist_ok=True)
-
+        # Default tag snippet
         default_tag_snippet = """
 <tr><td>
 <a href="/__DATA_TAG__.html"><p class="headers">__LINK_TITLE__</p></a>
 </td></tr>
 """  
         self.TAG_SECTION_TEMPLATE = os.environ.get("TAG_SECTION_TEMPLATE", default_tag_snippet)
+
+        # ------------------ ENSURE DIRECTORY STRUCTURE ------------------
+        # Make sure these directories exist. (They are assumed writable.)
+        self.TEMPLATE_DIR.mkdir(exist_ok=True)
+        self.ART_DIR.mkdir(parents=True, exist_ok=True)
+        self.THUMB_DIR.mkdir(parents=True, exist_ok=True)
+        self.JSON_DIR.mkdir(parents=True, exist_ok=True)
+
+    def get_gallery_path(self, filename):
+        if self.NEOCITIES_GALLERY_DIR:
+            return f"{self.NEOCITIES_GALLERY_DIR}/{filename}"
+        return filename
+
+    def get_tag_path(self, filename):
+        if self.NEOCITIES_TAG_DIR:
+            return f"{self.NEOCITIES_TAG_DIR}/{filename}"
+        return filename
+
+    def get_tag_dir(self):
+        """
+        Returns the remote tag directory.
+        This is useful when you need to insert the tag directory into your templates.
+        If NEOCITIES_TAG_DIR is empty, returns an empty string.
+        """
+        return self.NEOCITIES_TAG_DIR.strip() if self.NEOCITIES_TAG_DIR else ""
+
+    def get_gallery_dir(self):
+        """
+        Returns the remote gallery directory.
+        This is useful when you need to insert the gallery directory into your templates.
+        If NEOCITIES_GALLERY_DIR is empty, returns an empty string.
+        """
+        return self.NEOCITIES_GALLERY_DIR.strip() if self.NEOCITIES_GALLERY_DIR else ""
 
 # ----------------------- UTILITIES -----------------------
 class FileUtils:
@@ -92,7 +143,6 @@ class FileUtils:
 
 class ImageProcessor:
     """Handles image processing with proper thumbnail generation."""
-
     THUMBNAIL_WIDTH = 150
 
     @classmethod
@@ -145,8 +195,7 @@ class NeocitiesUploader:
                 print(f"[ERROR] Neocities API init failed: {str(e)}")
                 self.api = None
         else:
-            # Instead of crashing, log the missing key error and set api to None.
-            print("Your neocities API key is missing")
+            print("Your Neocities API key is missing")
             self.api = None
 
     def upload(self, local_path, remote_path):
@@ -172,9 +221,9 @@ class NeocitiesUploader:
             abort(500, f"Neocities delete failed: {str(e)}")
 
 
+# Initialize configuration and uploader
 cfg = Config()
 ImageProcessor.THUMBNAIL_WIDTH = cfg.THUMBNAIL_WIDTH
-
 app = Flask(
     __name__,
     static_url_path=cfg.STATIC_URL_PATH,
@@ -182,9 +231,24 @@ app = Flask(
 )
 uploader = NeocitiesUploader(cfg)
 
+# ------------------------------------------------------------------------------
+# HELPER FUNCTION TO WRAP ALL UPLOADER.UPLOAD CALLS
+# ------------------------------------------------------------------------------
+def perform_upload(upload_items):
+    """
+    Accepts a list of tuples (local_path, remote_path) and performs uploader.upload on each.
+    """
+    for local_path, remote_path in upload_items:
+        # Only attempt upload if the file exists.
+        if local_path.exists():
+            uploader.upload(local_path, remote_path)
+        else:
+            print(f"Skipping upload for {local_path} as it does not exist.")
+
 def _process_tags(tags_str):
     return [t.strip() for t in tags_str.split(",") if t.strip()]
 
+# ----------------------- ROUTES -----------------------
 @app.route("/")
 def index():
     return cfg.INDEX_HTML.read_text(encoding='utf-8')
@@ -263,10 +327,12 @@ def upload_art():
     })
     FileUtils.safe_json_save(art_data, cfg.ALL_ART_JSON)
 
-    # Upload to Neocities
-    uploader.upload(art_path, f"{cfg.NEOCITIES_ART_DIR}/{filename}")
-    uploader.upload(thumb_path, f"{cfg.NEOCITIES_THUMB_DIR}/{thumb_path.name}")
-    uploader.upload(cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}")
+    # Upload to Neocities using perform_upload helper
+    perform_upload([
+        (art_path, f"{cfg.NEOCITIES_ART_DIR}/{filename}"),
+        (thumb_path, f"{cfg.NEOCITIES_THUMB_DIR}/{thumb_path.name}"),
+        (cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}")
+    ])
 
     return f"Successfully uploaded {filename}"
 
@@ -277,13 +343,22 @@ def create_tag():
     if not all(data.get(field) for field in required_fields):
         abort(400, "Missing required tag fields")
 
+    # Create the new tag page file (named <tagName>.html) in the templates directory.
     tag_page = cfg.TEMPLATE_DIR / f"{data['tagName']}.html"
-    tag_page.write_text(
-        cfg.TAG_TEMPLATE.read_text()
+    
+    # Read the tag template, then replace the placeholders.
+    # Note that __NEOCITIES_GALLERY_DIR__ is replaced by the directory from the .env,
+    # and __GALLERY_PAGE__ is replaced by the filename of ART_HTML (i.e. your gallery page).
+    tag_template = cfg.TAG_TEMPLATE.read_text(encoding='utf-8')
+    tag_template = (
+        tag_template
         .replace("__DATA_TAG__", data['tagName'])
         .replace("__META_DESC__", data['metaDesc'])
         .replace("__PAGE_TITLE__", data['pageTitle'])
+        .replace("__NEOCITIES_GALLERY_DIR__", cfg.get_gallery_dir())
+        .replace("__GALLERY_PAGE__", cfg.ART_HTML.name)
     )
+    tag_page.write_text(tag_template, encoding='utf-8')
 
     _update_art_html(data['tagName'], data['linkTitle'])
 
@@ -292,12 +367,14 @@ def create_tag():
         tags.append(data['tagName'])
         FileUtils.safe_json_save(tags, cfg.TAG_LIST_JSON)
 
-    uploader.upload(tag_page, tag_page.name)
-    uploader.upload(cfg.ART_HTML, cfg.ART_HTML.name)
-    
-    uploader.upload(cfg.TAG_LIST_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.TAG_LIST_JSON.name}")
+    perform_upload([
+        (tag_page, cfg.get_tag_path(tag_page.name)),
+        (cfg.ART_HTML, cfg.get_gallery_path(cfg.ART_HTML.name)),
+        (cfg.TAG_LIST_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.TAG_LIST_JSON.name}")
+    ])
 
     return f"Tag {data['tagName']} created successfully"
+
 
 def _update_art_html(tag_name, link_title):
     content = cfg.ART_HTML.read_text(encoding='utf-8')
@@ -307,13 +384,21 @@ def _update_art_html(tag_name, link_title):
 
     insertion_point = last_end + len("<!--END-->")
     
-    snippet = cfg.TAG_SECTION_TEMPLATE
+    # Get and format the tag directory.
+    snippet = cfg.TAG_SECTION_TEMPLATE.strip()
+    tag_dir = cfg.get_tag_dir()
+    snippet = snippet.replace("__NEOCITIES_TAG_DIR__", tag_dir)
+    
     snippet = snippet.replace("__DATA_TAG__", tag_name)
     snippet = snippet.replace("__LINK_TITLE__", link_title)
 
     new_section = f"\n<!--{tag_name}-->\n{snippet}\n<!--END-->\n"
     updated_content = content[:insertion_point] + new_section + content[insertion_point:]
     cfg.ART_HTML.write_text(updated_content, encoding='utf-8')
+
+
+
+
 
 @app.route("/delete_tag", methods=["POST"])
 def delete_tag():
@@ -336,11 +421,14 @@ def delete_tag():
     remove_tag_from_art_html(tag_name)
     purge_tag_from_art_entries(tag_name)
 
-    uploader.upload(cfg.TAG_LIST_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.TAG_LIST_JSON.name}")
-    uploader.upload(cfg.ART_HTML, cfg.ART_HTML.name)
-    uploader.upload(cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}")
-    
-    uploader.delete([f"{tag_name}.html"])
+    # Only update the files that still exist locally.
+    perform_upload([
+        (cfg.ART_HTML, cfg.get_gallery_path(cfg.ART_HTML.name)),
+        (cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}")
+    ])
+
+    # Delete the remote tag page.
+    uploader.delete([cfg.get_tag_path(f"{tag_name}.html")])
     return jsonify({"message": f"Tag {tag_name} deleted successfully"})
 
 def remove_tag_from_art_html(tag_name):
@@ -393,11 +481,15 @@ def edit_tag():
     new_html = cfg.TEMPLATE_DIR / f"{new_tag}.html"
     
     tag_content = cfg.TAG_TEMPLATE.read_text(encoding='utf-8')
-    updated_content = (tag_content
+    updated_content = (
+        tag_content
         .replace("__DATA_TAG__", new_tag)
         .replace("__META_DESC__", meta_desc)
         .replace("__PAGE_TITLE__", page_title)
+        .replace("__NEOCITIES_GALLERY_DIR__", cfg.get_gallery_dir())
+        .replace("__GALLERY_PAGE__", cfg.ART_HTML.name)
     )
+
 
     if old_tag != new_tag and old_html.exists():
         old_html.unlink()
@@ -405,9 +497,15 @@ def edit_tag():
 
     art_html_content = cfg.ART_HTML.read_text(encoding='utf-8')
     pattern = rf'(<!--{old_tag}-->)(.*?)(<!--END-->)'
+    
+    # Generate the new snippet with __NEOCITIES_TAG_DIR__ replacement
     snippet = cfg.TAG_SECTION_TEMPLATE.strip()
     snippet = snippet.replace("__DATA_TAG__", new_tag)
     snippet = snippet.replace("__LINK_TITLE__", link_title)
+    
+    tag_dir = cfg.get_tag_dir()
+    snippet = snippet.replace("__NEOCITIES_TAG_DIR__", tag_dir)
+
     new_section = f'<!--{new_tag}-->\n{snippet}\n<!--END-->'
 
     updated_art_html = re.sub(pattern, new_section, art_html_content, flags=re.DOTALL)
@@ -421,14 +519,17 @@ def edit_tag():
                 entry['tags'].append(new_tag)
         FileUtils.safe_json_save(art_data, cfg.ALL_ART_JSON)
 
-    uploader.upload(cfg.TAG_LIST_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.TAG_LIST_JSON.name}")
-    uploader.upload(cfg.ART_HTML, cfg.ART_HTML.name)
-    uploader.upload(cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}")
-    uploader.upload(new_html, new_html.name)
+    perform_upload([
+        (cfg.TAG_LIST_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.TAG_LIST_JSON.name}"),
+        (cfg.ART_HTML, cfg.get_gallery_path(cfg.ART_HTML.name)),
+        (cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}"),
+        (new_html, cfg.get_tag_path(new_html.name))
+    ])
     if old_tag != new_tag:
-        uploader.delete([f"{old_tag}.html"])
+        uploader.delete([cfg.get_tag_path(f"{old_tag}.html")])
 
     return jsonify({"message": f"Tag {old_tag} updated successfully"})
+
 
 @app.route("/all_art")
 def get_all_art():
@@ -474,7 +575,9 @@ def delete_art():
         f"{cfg.NEOCITIES_ART_DIR}/{art_file.name}",
         f"{cfg.NEOCITIES_THUMB_DIR}/{thumb_file.name}"
     ])
-    uploader.upload(cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}")
+    perform_upload([
+        (cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}")
+    ])
     return jsonify({"message": f"Deleted {art_file.name}"})
 
 @app.route("/edit_art", methods=["POST"])
@@ -494,22 +597,30 @@ def edit_art():
     entry['tags'] = _process_tags(new_tags_str)
 
     FileUtils.safe_json_save(art_data, cfg.ALL_ART_JSON)
-    uploader.upload(cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}")
+    perform_upload([
+        (cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}")
+    ])
 
     return jsonify({"message": "Art updated successfully"})
 
+# ----------------------- ENTRY POINT -----------------------
 if __name__ == "__main__":
     if not cfg.API_KEY and not (cfg.USER and cfg.PASS):
-        print("You will not be able to use this program! please add your API key to the .env under NEOCITIES_API_KEY, and relaunch.")
+        print("You will not be able to use this program! Please add your API key to the .env under NEOCITIES_API_KEY, and relaunch.")
         input("Press any key to exit program...")
     else:
-        print("""Welcome to...
-  _   _             ____       _ _                                  _   ___  
- | \ | | ___  ___  / ___| __ _| | | ___ _ __ _   _  __   _____ _ __/ | / _ \ 
- |  \| |/ _ \/ _ \| |  _ / _` | | |/ _ \ '__| | | | \ \ / / _ \ '__| || | | |
- | |\  |  __/ (_) | |_| | (_| | | |  __/ |  | |_| |  \ V /  __/ |  | || |_| |
- |_| \_|\___|\___/ \____|\__,_|_|_|\___|_|   \__, |   \_/ \___|_|  |_(_)___/ 
-                                             |___/         Author: KingPoss""")
-        print(f"Hosted at: {cfg.HOST}:{cfg.PORT}")
-        webbrowser.open(f"http://{cfg.HOST}:{cfg.PORT}", new = 1)
-        serve(app, host=cfg.HOST, port=cfg.PORT, threads=100)
+        if cfg.DEBUG:
+            print(f"Hosted at: {cfg.HOST}:{cfg.PORT}")
+            app.run(host=cfg.HOST, port=cfg.PORT, debug=True)
+        else:
+            print("""Welcome to...
+ ______              ______       _ _                            __  __ 
+|  ___ \            / _____)     | | |                          /  |/  |
+| |   | | ____ ___ | /  ___  ____| | | ____  ____ _   _    _   /_/ /_/ |
+| |   | |/ _  ) _ \| | (___)/ _  | | |/ _  )/ ___) | | |  | | | || | | |
+| |   | ( (/ / |_| | \____/( ( | | | ( (/ /| |   | |_| |   \ V / | |_| |
+|_|   |_|\____)___/ \_____/ \_||_|_|_|\____)_|    \__  |    \_/  |_(_)_|
+                                                 (____/Author: KingPoss""")
+            print(f"Hosted at: {cfg.HOST}:{cfg.PORT}")
+            webbrowser.open(f"http://{cfg.HOST}:{cfg.PORT}", new=1)
+            serve(app, host=cfg.HOST, port=cfg.PORT, threads=100)
