@@ -52,3 +52,9 @@ Display gallery entries in lists based on the provided tags. Responsive layout l
 1. Launch `NeoGallery.py` or `NeoGallery.exe`, a window should open in your default browser to `https://127.0.0.1:5000` by default, but if not, head to it manually.
 2. Upload away!
 
+#TODO:
+```
+1. Pagination on the frontend and backend
+2. Switch to .ini for configuration settings and move it out of the root, just because i like a clean root
+3. Provide better examples and documentation 
+```
