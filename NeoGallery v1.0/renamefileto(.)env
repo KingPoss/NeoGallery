@@ -1,5 +1,5 @@
 NEOCITIES_API_KEY=
-#if you're using the API key just leave user and pass blank. using the API key is reccomended.
+#if you're using the API key just leave user and pass blank. using the API key is highly reccomended.
 NEOCITIES_USER=
 NEOCITIES_PASS=
 
@@ -7,16 +7,15 @@ NEOCITIES_ART_DIR=/assets/media
 NEOCITIES_THUMB_DIR=/assets/thumbnails
 NEOCITIES_JSON_DIR=/json
 
+NEOCITIES_GALLERY_DIR=/galleryDirectoryTester
+NEOCITIES_TAG_DIR=/tagDirectoryTester
+
 THUMBNAIL_WIDTH=150
 SHOW_IN_RANDOM=random
 
 ALL_ART_JSON=media.json
 TAG_LIST_JSON=tags.json
 
-ART_HTML=NeoGallery.html
-TAG_TEMPLATE=tagTemplate.html
-TEMPLATE_DIR=templates
-TAG_SECTION_TEMPLATE=<a href="/__DATA_TAG__.html"><p class="tagText">__LINK_TITLE__</p></a>
 
 STATIC_URL_PATH=/assets
 STATIC_FOLDER=/static/assets
@@ -25,6 +24,14 @@ STATIC_FOLDER=/static/assets
 ART_SUBDIR=media
 THUMB_SUBDIR=thumbnails
 JSON_SUBDIR=json
+
+ART_HTML=NeoGallery.html
+GALLERY_PAGE=NeoGallery.html
+
+TAG_TEMPLATE=tagTemplate.html
+TEMPLATE_DIR=templates
+TAG_SECTION_TEMPLATE=<a href="__NEOCITIES_TAG_DIR__/__DATA_TAG__.html"><p class="tagText">__LINK_TITLE__</p></a>
+s
 
 FLASK_HOST=127.0.0.1
 FLASK_PORT=5000
