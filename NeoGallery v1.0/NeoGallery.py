@@ -52,7 +52,8 @@ class Config:
         # Asset directories (local)
         self.ART_DIR = self.STATIC_FOLDER / os.environ.get("ART_SUBDIR", "art")
         self.THUMB_DIR = self.STATIC_FOLDER / os.environ.get("THUMB_SUBDIR", "thumbnails")
-
+        self.TAG_COVERS_DIR = self.STATIC_FOLDER / "tag_covers"
+        self.NEOCITIES_TAG_COVERS_DIR = os.environ.get("NEOCITIES_TAG_COVERS_DIR", "assets/tag_covers")
         # Remote directories for Neocities uploads
         self.NEOCITIES_ART_DIR = os.environ.get("NEOCITIES_ART_DIR", "assets/media")
         self.NEOCITIES_THUMB_DIR = os.environ.get("NEOCITIES_THUMB_DIR", "assets/thumbnails")
@@ -91,6 +92,7 @@ class Config:
         self.ART_DIR.mkdir(parents=True, exist_ok=True)
         self.THUMB_DIR.mkdir(parents=True, exist_ok=True)
         self.JSON_DIR.mkdir(parents=True, exist_ok=True)
+        self.TAG_COVERS_DIR.mkdir(parents=True, exist_ok=True)
 
     def get_gallery_path(self, filename):
         if self.NEOCITIES_GALLERY_DIR:
@@ -134,7 +136,7 @@ class FileUtils:
     @staticmethod
     def safe_json_save(data, path):
         try:
-            temp_path = path.with_suffix('.tmp')
+            temp_path = path.with_suffix('.png')
             with open(temp_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2)
             temp_path.replace(path)
@@ -256,15 +258,37 @@ def index():
 @app.route("/tags")
 def get_tags():
     tags = FileUtils.safe_json_load(cfg.TAG_LIST_JSON)
+    
+    # Convert to simple list for backward compatibility
+    tag_names = []
+    for tag in tags:
+        if isinstance(tag, str):
+            tag_names.append(tag)
+        elif isinstance(tag, dict):
+            tag_names.append(tag.get('name'))
+    
     return jsonify({
-        "tags": sorted(tags),
+        "tags": sorted(tag_names),
         "randomTag": cfg.SHOW_IN_RANDOM
     })
 
 @app.route("/get_tag/<tag_name>")
 def get_tag(tag_name):
     tags = FileUtils.safe_json_load(cfg.TAG_LIST_JSON)
-    if tag_name not in tags:
+    
+    # Find tag info (handle both string and dict formats)
+    tag_info = None
+    cover_photo = ""
+    for tag in tags:
+        if isinstance(tag, str) and tag == tag_name:
+            tag_info = tag
+            break
+        elif isinstance(tag, dict) and tag.get('name') == tag_name:
+            tag_info = tag.get('name')
+            cover_photo = tag.get('coverPhoto', '')
+            break
+    
+    if not tag_info:
         return jsonify({"error": f"Tag '{tag_name}' not found in registry"}), 404
     
     tag_html_path = cfg.TEMPLATE_DIR / f"{tag_name}.html"
@@ -274,13 +298,14 @@ def get_tag(tag_name):
             "tagName": tag_name,
             "metaDesc": "",
             "pageTitle": tag_name,
-            "linkTitle": ""
+            "linkTitle": "",
+            "coverPhoto": cover_photo
         })
-
+    
     content = tag_html_path.read_text(encoding='utf-8')
     meta_desc_match = re.search(r'<meta\s+name="description"\s+content="(.*?)"', content)
     page_title_match = re.search(r'<title>(.*?)</title>', content, re.DOTALL)
-
+    
     art_html_content = cfg.ART_HTML.read_text(encoding='utf-8')
     section_match = re.search(
         rf'<!--{tag_name}-->(.*?)<!--END-->',
@@ -293,12 +318,13 @@ def get_tag(tag_name):
         p_match = re.search(r'<p\s+class="tagText">(.*?)</p>', snippet, re.DOTALL)
         if p_match:
             link_title = p_match.group(1).strip()
-
+    
     return jsonify({
         "tagName": tag_name,
         "metaDesc": meta_desc_match.group(1) if meta_desc_match else "",
         "pageTitle": page_title_match.group(1).strip() if page_title_match else tag_name,
-        "linkTitle": link_title
+        "linkTitle": link_title,
+        "coverPhoto": cover_photo
     })
 
 @app.route("/upload", methods=["POST"])
@@ -338,45 +364,89 @@ def upload_art():
 
 @app.route("/create_tag", methods=["POST"])
 def create_tag():
-    data = request.get_json()
+    # Handle both JSON and FormData
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        # Handle form data with file upload
+        data = {
+            'tagName': request.form.get('tagName'),
+            'metaDesc': request.form.get('metaDesc'),
+            'pageTitle': request.form.get('pageTitle'),
+            'linkTitle': request.form.get('linkTitle')
+        }
+        cover_file = request.files.get('coverPhoto')
+    else:
+        # Handle JSON data (backward compatibility)
+        data = request.get_json()
+        cover_file = None
+    
     required_fields = ['tagName', 'metaDesc', 'pageTitle', 'linkTitle']
     if not all(data.get(field) for field in required_fields):
         abort(400, "Missing required tag fields")
-
-    # Create the new tag page file (named <tagName>.html) in the templates directory.
-    tag_page = cfg.TEMPLATE_DIR / f"{data['tagName']}.html"
     
-    # Read the tag template, then replace the placeholders.
-    # Note that __NEOCITIES_GALLERY_DIR__ is replaced by the directory from the .env,
-    # and __GALLERY_PAGE__ is replaced by the filename of ART_HTML (i.e. your gallery page).
+    # Process cover photo if provided
+    cover_photo_path = ""
+    if cover_file and cover_file.filename:
+        # Create thumbnail for cover photo
+        cover_filename = f"cover_{data['tagName']}_{secure_filename(cover_file.filename)}"
+        temp_path = cfg.TAG_COVERS_DIR / "temp_cover.png"
+        cover_file.save(temp_path)
+        
+        # Create thumbnail (no full-size version needed)
+        cover_thumb_path = ImageProcessor.create_thumbnail(temp_path, cfg.TAG_COVERS_DIR)
+        final_cover_path = cfg.TAG_COVERS_DIR / cover_filename
+        cover_thumb_path.rename(final_cover_path)
+        temp_path.unlink()  # Remove temp file
+        
+        cover_photo_path = f"{cfg.NEOCITIES_TAG_COVERS_DIR}/{cover_filename}"
+        
+    # Create the tag page with cover photo
+    tag_page = cfg.TEMPLATE_DIR / f"{data['tagName']}.html"
     tag_template = cfg.TAG_TEMPLATE.read_text(encoding='utf-8')
     tag_template = (
         tag_template
         .replace("__DATA_TAG__", data['tagName'])
         .replace("__META_DESC__", data['metaDesc'])
         .replace("__PAGE_TITLE__", data['pageTitle'])
+        .replace("__COVER_PHOTO__", cover_photo_path)
         .replace("__NEOCITIES_GALLERY_DIR__", cfg.get_gallery_dir())
         .replace("__GALLERY_PAGE__", cfg.ART_HTML.name)
     )
     tag_page.write_text(tag_template, encoding='utf-8')
-
-    _update_art_html(data['tagName'], data['linkTitle'])
-
+    
+    _update_art_html(data['tagName'], data['linkTitle'], cover_photo_path)
+    
+    # Update tags list with cover photo info
     tags = FileUtils.safe_json_load(cfg.TAG_LIST_JSON)
-    if data['tagName'] not in tags:
-        tags.append(data['tagName'])
-        FileUtils.safe_json_save(tags, cfg.TAG_LIST_JSON)
-
-    perform_upload([
+    tag_info = {
+        'name': data['tagName'],
+        'coverPhoto': cover_photo_path
+    }
+    
+    # Check if tag already exists
+    existing_tag = next((t for t in tags if isinstance(t, dict) and t.get('name') == data['tagName']), None)
+    if not existing_tag:
+        # For backward compatibility, check if it's a string
+        if data['tagName'] not in [t if isinstance(t, str) else t.get('name') for t in tags]:
+            tags.append(tag_info)
+    
+    FileUtils.safe_json_save(tags, cfg.TAG_LIST_JSON)
+    
+    # Upload files
+    upload_items = [
         (tag_page, cfg.get_tag_path(tag_page.name)),
         (cfg.ART_HTML, cfg.get_gallery_path(cfg.ART_HTML.name)),
         (cfg.TAG_LIST_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.TAG_LIST_JSON.name}")
-    ])
+    ]
+    
+    if cover_photo_path and final_cover_path.exists():
+        upload_items.append((final_cover_path, cover_photo_path))
+    
+    perform_upload(upload_items)
+    
+    return jsonify({"message": f"Tag {data['tagName']} created successfully"})
 
-    return f"Tag {data['tagName']} created successfully"
 
-
-def _update_art_html(tag_name, link_title):
+def _update_art_html(tag_name, link_title, cover_photo_path):
     content = cfg.ART_HTML.read_text(encoding='utf-8')
     last_end = content.rfind("<!--END-->")
     if last_end == -1:
@@ -391,7 +461,7 @@ def _update_art_html(tag_name, link_title):
     
     snippet = snippet.replace("__DATA_TAG__", tag_name)
     snippet = snippet.replace("__LINK_TITLE__", link_title)
-
+    snippet = snippet.replace("__COVER_PHOTO__", cover_photo_path)
     new_section = f"\n<!--{tag_name}-->\n{snippet}\n<!--END-->\n"
     updated_content = content[:insertion_point] + new_section + content[insertion_point:]
     cfg.ART_HTML.write_text(updated_content, encoding='utf-8')
@@ -405,30 +475,52 @@ def delete_tag():
     data = request.get_json()
     if not data or 'tagName' not in data:
         abort(400, "Missing tag name")
-
+    
     tag_name = data['tagName']
     tags = FileUtils.safe_json_load(cfg.TAG_LIST_JSON)
-    if tag_name not in tags:
+    
+    # Find and remove tag (handle both string and dict formats)
+    tag_to_remove = None
+    cover_photo_path = ""
+    for i, tag in enumerate(tags):
+        if isinstance(tag, str) and tag == tag_name:
+            tag_to_remove = i
+            break
+        elif isinstance(tag, dict) and tag.get('name') == tag_name:
+            tag_to_remove = i
+            cover_photo_path = tag.get('coverPhoto', '')
+            break
+    
+    if tag_to_remove is None:
         abort(404, f"Tag {tag_name} not found")
-
-    tags.remove(tag_name)
+    
+    tags.pop(tag_to_remove)
     FileUtils.safe_json_save(tags, cfg.TAG_LIST_JSON)
-
+    
     tag_page = cfg.TEMPLATE_DIR / f"{tag_name}.html"
     if tag_page.exists():
         tag_page.unlink()
-
+    
+    # Delete local cover photo if exists
+    if cover_photo_path:
+        local_cover = cfg.TAG_COVERS_DIR / Path(cover_photo_path).name
+        if local_cover.exists():
+            local_cover.unlink()
+    
     remove_tag_from_art_html(tag_name)
     purge_tag_from_art_entries(tag_name)
-
-    # Only update the files that still exist locally.
+    
     perform_upload([
         (cfg.ART_HTML, cfg.get_gallery_path(cfg.ART_HTML.name)),
         (cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}")
     ])
-
-    # Delete the remote tag page.
-    uploader.delete([cfg.get_tag_path(f"{tag_name}.html")])
+    
+    # Delete remote files
+    files_to_delete = [cfg.get_tag_path(f"{tag_name}.html")]
+    if cover_photo_path:
+        files_to_delete.append(cover_photo_path)
+    
+    uploader.delete(files_to_delete)
     return jsonify({"message": f"Tag {tag_name} deleted successfully"})
 
 def remove_tag_from_art_html(tag_name):
@@ -455,28 +547,83 @@ def purge_tag_from_art_entries(tag_name):
 
 @app.route("/edit_tag", methods=["POST"])
 def edit_tag():
-    data = request.get_json()
+    # Handle both JSON and FormData
+    if request.content_type and 'multipart/form-data' in request.content_type:
+        data = {
+            'oldTagName': request.form.get('oldTagName'),
+            'newTagName': request.form.get('newTagName'),
+            'metaDesc': request.form.get('metaDesc'),
+            'pageTitle': request.form.get('pageTitle'),
+            'linkTitle': request.form.get('linkTitle')
+        }
+        cover_file = request.files.get('coverPhoto')
+    else:
+        data = request.get_json()
+        cover_file = None
+    
     required_fields = ['oldTagName', 'newTagName', 'metaDesc', 'pageTitle', 'linkTitle']
     if not all(field in data for field in required_fields):
         abort(400, "Missing required fields")
-
+    
     old_tag = data['oldTagName']
     new_tag = data['newTagName']
     meta_desc = data['metaDesc']
     page_title = data['pageTitle']
     link_title = data['linkTitle']
-
+    
     tags = FileUtils.safe_json_load(cfg.TAG_LIST_JSON)
-    if old_tag not in tags:
+    
+    # Find existing tag
+    tag_index = None
+    existing_cover = ""
+    for i, tag in enumerate(tags):
+        if isinstance(tag, str) and tag == old_tag:
+            tag_index = i
+            break
+        elif isinstance(tag, dict) and tag.get('name') == old_tag:
+            tag_index = i
+            existing_cover = tag.get('coverPhoto', '')
+            break
+    
+    if tag_index is None:
         abort(404, f"Tag {old_tag} not found")
-    if old_tag != new_tag and new_tag in tags:
-        abort(400, f"Tag {new_tag} already exists")
-
+    
+    # Check if new tag name already exists (if renaming)
     if old_tag != new_tag:
-        tags.remove(old_tag)
-        tags.append(new_tag)
-        FileUtils.safe_json_save(tags, cfg.TAG_LIST_JSON)
-
+        for tag in tags:
+            tag_name = tag if isinstance(tag, str) else tag.get('name')
+            if tag_name == new_tag:
+                abort(400, f"Tag {new_tag} already exists")
+    
+    # Process new cover photo if provided
+    new_cover_path = existing_cover
+    if cover_file and cover_file.filename:
+        # Delete old cover if exists
+        if existing_cover:
+            old_cover_local = cfg.TAG_COVERS_DIR / Path(existing_cover).name
+            if old_cover_local.exists():
+                old_cover_local.unlink()
+        
+        # Create new cover
+        cover_filename = f"cover_{new_tag}_{secure_filename(cover_file.filename)}"
+        temp_path = cfg.TAG_COVERS_DIR / "temp_cover.png"
+        cover_file.save(temp_path)
+        
+        cover_thumb_path = ImageProcessor.create_thumbnail(temp_path, cfg.TAG_COVERS_DIR)
+        final_cover_path = cfg.TAG_COVERS_DIR / cover_filename
+        cover_thumb_path.rename(final_cover_path)
+        temp_path.unlink()
+        
+        new_cover_path = f"{cfg.NEOCITIES_TAG_COVERS_DIR}/{cover_filename}"
+    
+    # Update tag in list
+    tags[tag_index] = {
+        'name': new_tag,
+        'coverPhoto': new_cover_path
+    }
+    FileUtils.safe_json_save(tags, cfg.TAG_LIST_JSON)
+    
+    # Update HTML files
     old_html = cfg.TEMPLATE_DIR / f"{old_tag}.html"
     new_html = cfg.TEMPLATE_DIR / f"{new_tag}.html"
     
@@ -486,31 +633,32 @@ def edit_tag():
         .replace("__DATA_TAG__", new_tag)
         .replace("__META_DESC__", meta_desc)
         .replace("__PAGE_TITLE__", page_title)
+        .replace("__COVER_PHOTO__", new_cover_path)
         .replace("__NEOCITIES_GALLERY_DIR__", cfg.get_gallery_dir())
         .replace("__GALLERY_PAGE__", cfg.ART_HTML.name)
     )
-
-
+    
     if old_tag != new_tag and old_html.exists():
         old_html.unlink()
     new_html.write_text(updated_content, encoding='utf-8')
-
+    
+    # Update art.html
     art_html_content = cfg.ART_HTML.read_text(encoding='utf-8')
     pattern = rf'(<!--{old_tag}-->)(.*?)(<!--END-->)'
     
-    # Generate the new snippet with __NEOCITIES_TAG_DIR__ replacement
     snippet = cfg.TAG_SECTION_TEMPLATE.strip()
     snippet = snippet.replace("__DATA_TAG__", new_tag)
     snippet = snippet.replace("__LINK_TITLE__", link_title)
     
     tag_dir = cfg.get_tag_dir()
     snippet = snippet.replace("__NEOCITIES_TAG_DIR__", tag_dir)
-
+    
     new_section = f'<!--{new_tag}-->\n{snippet}\n<!--END-->'
-
+    
     updated_art_html = re.sub(pattern, new_section, art_html_content, flags=re.DOTALL)
     cfg.ART_HTML.write_text(updated_art_html, encoding='utf-8')
-
+    
+    # Update art entries if tag name changed
     if old_tag != new_tag:
         art_data = FileUtils.safe_json_load(cfg.ALL_ART_JSON)
         for entry in art_data:
@@ -518,16 +666,30 @@ def edit_tag():
                 entry['tags'].remove(old_tag)
                 entry['tags'].append(new_tag)
         FileUtils.safe_json_save(art_data, cfg.ALL_ART_JSON)
-
-    perform_upload([
+    
+    # Prepare uploads
+    upload_items = [
         (cfg.TAG_LIST_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.TAG_LIST_JSON.name}"),
         (cfg.ART_HTML, cfg.get_gallery_path(cfg.ART_HTML.name)),
         (cfg.ALL_ART_JSON, f"{cfg.NEOCITIES_JSON_DIR}/{cfg.ALL_ART_JSON.name}"),
         (new_html, cfg.get_tag_path(new_html.name))
-    ])
+    ]
+    
+    if new_cover_path and (cfg.TAG_COVERS_DIR / Path(new_cover_path).name).exists():
+        upload_items.append((cfg.TAG_COVERS_DIR / Path(new_cover_path).name, new_cover_path))
+    
+    perform_upload(upload_items)
+    
+    # Clean up old files on remote
+    files_to_delete = []
     if old_tag != new_tag:
-        uploader.delete([cfg.get_tag_path(f"{old_tag}.html")])
-
+        files_to_delete.append(cfg.get_tag_path(f"{old_tag}.html"))
+    if existing_cover and existing_cover != new_cover_path:
+        files_to_delete.append(existing_cover)
+    
+    if files_to_delete:
+        uploader.delete(files_to_delete)
+    
     return jsonify({"message": f"Tag {old_tag} updated successfully"})
 
 

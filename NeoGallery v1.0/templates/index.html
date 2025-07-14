@@ -192,28 +192,34 @@
 <div id="addTagModal" class="modal">
   <div class="modal-content">
     <span class="close" onclick="closeAddTagModal()">&times;</span>
-	<center>
-    <h2>Create New Tag</h2>
-    <form id="addTagForm">
-	    <label>Tag:<br>
-        <input type="text" id="addTagName" required  placeholder="" style="margin:0px;">
-		</label>
-		<label>Meta Description<br>
-        <input type="text" id="addMetaDesc" required  placeholder="" style="margin:0px;">
-		</label>
-		<label>Tab Title:<br>
-        <input type="text" id="addPageTitle" required placeholder="" style="margin:0px;">
-		</label>
-		<label>Tag Link Title<br>
-        <input type="text" id="addLinkTitle" required  placeholder="" style="margin:0px;">
-		</label>
-      <div style="margin-top: 1rem;">
-        <button type="submit">Create Tag</button>
-        <button type="button" onclick="closeAddTagModal()">Cancel</button>
-      </div>
-    </form>
+    <center>
+      <h2>Create New Tag</h2>
+      <form id="addTagForm" enctype="multipart/form-data">
+        <label>Tag:<br>
+          <input type="text" id="addTagName" required placeholder="" style="margin:0px;">
+        </label>
+        <label>Meta Description<br>
+          <input type="text" id="addMetaDesc" required placeholder="" style="margin:0px;">
+        </label>
+        <label>Tab Title:<br>
+          <input type="text" id="addPageTitle" required placeholder="" style="margin:0px;">
+        </label>
+        <label>Tag Link Title<br>
+          <input type="text" id="addLinkTitle" required placeholder="" style="margin:0px;">
+        </label>
+        <label>Cover Photo (optional):<br>
+          <input type="file" id="addCoverPhoto" accept="image/*" style="margin:0px;">
+          <div id="addCoverPreview" style="margin-top: 10px; display: none;">
+            <img src="" alt="Cover preview" style="max-width: 200px; max-height: 150px;">
+          </div>
+        </label>
+        <div style="margin-top: 1rem;">
+          <button type="submit">Create Tag</button>
+          <button type="button" onclick="closeAddTagModal()">Cancel</button>
+        </div>
+      </form>
+    </center>
   </div>
-  </center>
 </div>
 
 <!-- Manage Art Section -->
@@ -256,28 +262,35 @@
 <div id="editTagModal" class="modal">
   <div class="modal-content">
     <span class="close" onclick="closeEditTagModal()">&times;</span>
-	<center>
-    <h2>Edit Tag</h2>
-    <form id="editTagForm">
-      <input type="hidden" id="editOldTagName">
-      <label>Tag:<br>
-        <input type="text" id="editTagName" required  placeholder="" style="margin:0px;">
-      </label>
-      <label>Meta Description:<br>
-        <input type="text" id="editMetaDesc" required  placeholder="" style="margin:0px;">
-      </label>
-      <label>Tab Title:<br>
-        <input type="text" id="editPageTitle" required  placeholder="" style="margin:0px;">
-      </label>
-      <label>Tag Link Title:<br>
-        <input type="text" id="editLinkTitle" required  placeholder="" style="margin:0px;">
-      </label>
-      <div style="margin-top: 1rem;">
-        <button type="submit">Save Changes</button>
-        <button type="button" onclick="closeEditTagModal()">Cancel</button>
-      </div>
-    </form>
-	</center>
+    <center>
+      <h2>Edit Tag</h2>
+      <form id="editTagForm" enctype="multipart/form-data">
+        <input type="hidden" id="editOldTagName">
+        <label>Tag:<br>
+          <input type="text" id="editTagName" required placeholder="" style="margin:0px;">
+        </label>
+        <label>Meta Description:<br>
+          <input type="text" id="editMetaDesc" required placeholder="" style="margin:0px;">
+        </label>
+        <label>Tab Title:<br>
+          <input type="text" id="editPageTitle" required placeholder="" style="margin:0px;">
+        </label>
+        <label>Tag Link Title:<br>
+          <input type="text" id="editLinkTitle" required placeholder="" style="margin:0px;">
+        </label>
+        <label>Cover Photo:<br>
+          <input type="file" id="editCoverPhoto" accept="image/*" style="margin:0px;">
+          <div id="editCoverPreview" style="margin-top: 10px;">
+            <img src="" alt="Cover preview" style="max-width: 200px; max-height: 150px; display: none;">
+            <p id="currentCoverText" style="margin: 5px 0; font-size: 0.9em; color: #666;"></p>
+          </div>
+        </label>
+        <div style="margin-top: 1rem;">
+          <button type="submit">Save Changes</button>
+          <button type="button" onclick="closeEditTagModal()">Cancel</button>
+        </div>
+      </form>
+    </center>
   </div>
 </div>
 
@@ -286,6 +299,33 @@
   const dropArea = document.getElementById('drop-area');
   const fileInput = document.getElementById('fileInput');
   const previewImg = document.getElementById('preview');
+  
+  document.getElementById('addCoverPhoto').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const preview = document.getElementById('addCoverPreview');
+        preview.querySelector('img').src = e.target.result;
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  document.getElementById('editCoverPhoto').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const preview = document.getElementById('editCoverPreview');
+      preview.querySelector('img').src = e.target.result;
+      preview.querySelector('img').style.display = 'block';
+      document.getElementById('currentCoverText').textContent = 'New cover photo selected';
+    };
+    reader.readAsDataURL(file);
+  }
+  });
 
   dropArea.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -417,45 +457,54 @@
   }
   function closeAddTagModal() {
     document.getElementById('addTagModal').style.display = 'none';
+    document.getElementById('addCoverPreview').style.display = 'none';
+    document.getElementById('addCoverPhoto').value = '';
   }
 
-  document.getElementById('addTagForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const tagData = {
-      tagName: document.getElementById('addTagName').value.trim(),
-      metaDesc: document.getElementById('addMetaDesc').value.trim(),
-      pageTitle: document.getElementById('addPageTitle').value.trim(),
-      linkTitle: document.getElementById('addLinkTitle').value.trim()
-    };
+document.getElementById('addTagForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const formData = new FormData();
+  formData.append('tagName', document.getElementById('addTagName').value.trim());
+  formData.append('metaDesc', document.getElementById('addMetaDesc').value.trim());
+  formData.append('pageTitle', document.getElementById('addPageTitle').value.trim());
+  formData.append('linkTitle', document.getElementById('addLinkTitle').value.trim());
+  
+  const coverFile = document.getElementById('addCoverPhoto').files[0];
+  if (coverFile) {
+    formData.append('coverPhoto', coverFile);
+  }
 
-    if (!Object.values(tagData).every(Boolean)) {
-      alert('All fields are required!');
-      return;
-    }
+  // Validate required fields
+  if (!formData.get('tagName') || !formData.get('metaDesc') || 
+      !formData.get('pageTitle') || !formData.get('linkTitle')) {
+    alert('All text fields are required!');
+    return;
+  }
 
-    const confirmMsg = `Create new tag:\n` +
-      `Tag: ${tagData.tagName}\n` +
-      `Meta Desc: ${tagData.metaDesc}\n` +
-      `Tab Title: ${tagData.pageTitle}\n` +
-      `Link Title: ${tagData.linkTitle}\n\nContinue?`;
+  const confirmMsg = `Create new tag:\n` +
+    `Tag: ${formData.get('tagName')}\n` +
+    `Meta Desc: ${formData.get('metaDesc')}\n` +
+    `Tab Title: ${formData.get('pageTitle')}\n` +
+    `Link Title: ${formData.get('linkTitle')}\n` +
+    `Cover Photo: ${coverFile ? coverFile.name : 'None'}\n\nContinue?`;
 
-    if (!confirm(confirmMsg)) return;
+  if (!confirm(confirmMsg)) return;
 
-    fetch('/create_tag', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(tagData)
+  fetch('/create_tag', {
+    method: 'POST',
+    body: formData
+  })
+    .then(res => res.json())
+    .then(data => {
+      alert(data.message);
+      document.getElementById('addTagForm').reset();
+      document.getElementById('addCoverPreview').style.display = 'none';
+      closeAddTagModal();
+      location.reload();
     })
-      .then(res => res.text())
-      .then(msg => {
-        alert(msg);
-        document.getElementById('addTagForm').reset();
-        closeAddTagModal();
-        location.reload();
-      })
-      .catch(err => alert('Error creating tag: ' + err));
-  });
+    .catch(err => alert('Error creating tag: ' + err));
+});
 
   // Close modals on backdrop click
   window.onclick = function(event) {
@@ -660,35 +709,41 @@
   }
   function closeEditTagModal() {
     document.getElementById('editTagModal').style.display = 'none';
+    document.getElementById('editCoverPhoto').value = '';
   }
 
   document.getElementById('editTagForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    const formData = {
-      oldTagName: document.getElementById('editOldTagName').value,
-      newTagName: document.getElementById('editTagName').value.trim(),
-      metaDesc: document.getElementById('editMetaDesc').value.trim(),
-      pageTitle: document.getElementById('editPageTitle').value.trim(),
-      linkTitle: document.getElementById('editLinkTitle').value.trim()
-    };
+    
+    const formData = new FormData();
+    formData.append('oldTagName', document.getElementById('editOldTagName').value);
+    formData.append('newTagName', document.getElementById('editTagName').value.trim());
+    formData.append('metaDesc', document.getElementById('editMetaDesc').value.trim());
+    formData.append('pageTitle', document.getElementById('editPageTitle').value.trim());
+    formData.append('linkTitle', document.getElementById('editLinkTitle').value.trim());
+    
+    const coverFile = document.getElementById('editCoverPhoto').files[0];
+    if (coverFile) {
+      formData.append('coverPhoto', coverFile);
+    }
 
-    if (!Object.values(formData).every(Boolean)) {
-      alert('All fields are required!');
+    if (!formData.get('newTagName') || !formData.get('metaDesc') || 
+        !formData.get('pageTitle') || !formData.get('linkTitle')) {
+      alert('All text fields are required!');
       return;
     }
 
     fetch('/edit_tag', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
+      body: formData
     })
-    .then(resp => resp.json())
-    .then(data => {
-      alert(data.message);
-      closeEditTagModal();
-      location.reload();
-    })
-    .catch(err => alert('Error updating tag: ' + err));
+      .then(resp => resp.json())
+      .then(data => {
+        alert(data.message);
+        closeEditTagModal();
+        location.reload();
+      })
+      .catch(err => alert('Error updating tag: ' + err));
   });
 
   function populateTagManagement(tags) {
@@ -768,32 +823,47 @@
       });
     });
 
-    document.querySelectorAll('.editTagBtn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const tagName = this.dataset.tag;
-        fetch(`/get_tag/${tagName}`)
-	  .then(resp => {
-		if (!resp.ok) {
-		  return resp.json().then(err => Promise.reject(err.error));
-		}
-		return resp.json();
-	  })
-          .then(data => {
-            if (data.error) {
-              alert(`Warning: ${data.error}. Some fields may be empty.`);
-            }
-            document.getElementById('editOldTagName').value = data.tagName;
-            document.getElementById('editTagName').value = data.tagName;
-            document.getElementById('editMetaDesc').value = data.metaDesc;
-            document.getElementById('editPageTitle').value = data.pageTitle;
-            document.getElementById('editLinkTitle').value = data.linkTitle;
-            document.getElementById('editTagModal').style.display = 'block';
-          })
-          .catch(err => {
-            alert('Error loading tag: ' + err);
-          });
-      });
+  document.querySelectorAll('.editTagBtn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const tagName = this.dataset.tag;
+      fetch(`/get_tag/${tagName}`)
+        .then(resp => {
+          if (!resp.ok) {
+            return resp.json().then(err => Promise.reject(err.error));
+          }
+          return resp.json();
+        })
+        .then(data => {
+          if (data.error) {
+            alert(`Warning: ${data.error}. Some fields may be empty.`);
+          }
+          document.getElementById('editOldTagName').value = data.tagName;
+          document.getElementById('editTagName').value = data.tagName;
+          document.getElementById('editMetaDesc').value = data.metaDesc;
+          document.getElementById('editPageTitle').value = data.pageTitle;
+          document.getElementById('editLinkTitle').value = data.linkTitle;
+          
+          // Handle cover photo preview
+          const previewImg = document.querySelector('#editCoverPreview img');
+          const currentCoverText = document.getElementById('currentCoverText');
+          
+          if (data.coverPhoto) {
+            previewImg.src = data.coverPhoto;
+            previewImg.style.display = 'block';
+            currentCoverText.textContent = 'Current cover photo';
+          } else {
+            previewImg.style.display = 'none';
+            currentCoverText.textContent = 'No cover photo';
+          }
+          
+          document.getElementById('editCoverPhoto').value = '';
+          document.getElementById('editTagModal').style.display = 'block';
+        })
+        .catch(err => {
+          alert('Error loading tag: ' + err);
+        });
     });
+  });
   }
 
   // After page loads, fetch tags for the Tag Management UI
