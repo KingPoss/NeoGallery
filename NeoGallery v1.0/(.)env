@@ -18,7 +18,7 @@ TAG_LIST_JSON=tags.json
 
 
 STATIC_URL_PATH=/assets
-STATIC_FOLDER=/static/assets
+STATIC_FOLDER=static/assets
 
 # For local path (relative to STATIC_FOLDER)
 ART_SUBDIR=media
