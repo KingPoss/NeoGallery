@@ -69,6 +69,57 @@ def _upload_cover(final_name: str) -> str:
     return res.url
 
 
+def gallery_loader_html() -> str:
+    cfg = config.get()
+    if not cfg.show_loader or not cfg.loading_image:
+        return ""
+    return (
+        '    <div class="galleryLoader">\n'
+        '        <div>\n'
+        f'        <img src="{cfg.loading_image}" alt="Loading...">\n'
+        '        <p>Loading...</p>\n'
+        '        </div>\n'
+        '    </div>'
+    )
+
+
+def modal_loader_html() -> str:
+    cfg = config.get()
+    if not cfg.show_loader or not cfg.loading_image:
+        return ""
+    return f'    <img id="loadingPlaceholder" class="loading" src="{cfg.loading_image}">'
+
+
+_GALLERY_LOADER_RE = re.compile(r'<div\s+class="galleryLoader"[\s\S]*?</div>\s*</div>', re.IGNORECASE)
+_MODAL_LOADER_RE = re.compile(r'<img[^>]*\bid="loadingPlaceholder"[^>]*>(?:\s*</img>)?', re.IGNORECASE)
+
+
+def _render_for_upload(local: Path) -> Path:
+    """read an HTML file from templates/, apply loader substitutions, write to a temp
+    file and return that path so the cached version on disk stays as authored."""
+    import tempfile
+    text = local.read_text(encoding="utf-8")
+    rendered = apply_loader_substitutions(text)
+    if rendered == text:
+        return local
+    tmp = Path(tempfile.gettempdir()) / f"_ng_push_{local.name}"
+    tmp.write_text(rendered, encoding="utf-8")
+    return tmp
+
+
+def apply_loader_substitutions(text: str) -> str:
+    # works on both placeholder-style templates and on already-rendered HTML pages
+    # (the latter happens because we cache rendered NeoGallery.html in templates/ and
+    # need to keep pushing it to Neocities with whatever loader the user currently picked)
+    g = gallery_loader_html()
+    m = modal_loader_html()
+    text = _GALLERY_LOADER_RE.sub(lambda _: g, text)
+    text = _MODAL_LOADER_RE.sub(lambda _: m, text)
+    text = text.replace("__GALLERY_LOADER__", g)
+    text = text.replace("__MODAL_LOADER__", m)
+    return text
+
+
 def _render_tag_html(tag: dict, cover_url: str) -> str:
     template = _template("tagTemplate.html")
     if not template.exists():
@@ -80,7 +131,7 @@ def _render_tag_html(tag: dict, cover_url: str) -> str:
             f'<body><div class="gallery" data-tag="{tag["name"]}"></div></body></html>'
         )
     text = template.read_text(encoding="utf-8")
-    return (
+    rendered = (
         text
         .replace("__DATA_TAG__", tag["name"])
         .replace("__META_DESC__", tag.get("metaDesc", ""))
@@ -89,6 +140,7 @@ def _render_tag_html(tag: dict, cover_url: str) -> str:
         .replace("__NEOCITIES_GALLERY_DIR__", config.get().neocities.gallery_dir or "")
         .replace("__GALLERY_PAGE__", config.get().art_html_name)
     )
+    return apply_loader_substitutions(rendered)
 
 
 def _append_section_to_art(tag_name: str, link_title: str) -> None:
@@ -129,7 +181,7 @@ def _push_site_files(extra: list[tuple[Path, str, str]] = None) -> None:
         return
     art = _template(config.get().art_html_name)
     if art.exists():
-        site.upload(art, kind="html", dest_name=config.get().art_html_name)
+        site.upload(_render_for_upload(art), kind="html", dest_name=config.get().art_html_name)
     site.upload(paths.TAGS_JSON, kind="json", dest_name=config.get().tag_list_json_name)
     for local, kind, dest_name in (extra or []):
         if local.exists():

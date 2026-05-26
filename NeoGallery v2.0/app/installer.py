@@ -1,3 +1,4 @@
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -117,7 +118,8 @@ def install_site_template(progress_cb: Callable[[str, str, str], None] | None = 
         if progress_cb:
             progress_cb(remote, "uploading", "")
         try:
-            _raw_upload(local, remote, key)
+            upload_src = _render_if_template(local)
+            _raw_upload(upload_src, remote, key)
         except requests.Timeout:
             msg = "timed out after 60s"
             report.errors.append({"file": remote, "error": msg})
@@ -144,6 +146,80 @@ def install_site_template(progress_cb: Callable[[str, str, str], None] | None = 
             progress_cb(remote, "uploaded", "")
 
     return report
+
+
+def republish_site() -> InstallReport:
+    """re-render and force-upload NeoGallery.html, every per-tag page, the chosen loader
+    asset, and media.json. unlike install_site_template, this overwrites existing files."""
+    from . import storage, tag_service
+    report = InstallReport()
+    key = config.get().neocities.api_key
+    if not key:
+        report.errors.append({"file": "(setup)", "error": "Neocities API key missing"})
+        return report
+
+    n = config.get().neocities
+    gallery = (n.gallery_dir or "").strip("/")
+    tag_dir = (n.tag_dir or "").strip("/")
+    json_dir = (n.json_dir or "").strip("/")
+
+    def _try(remote: str, src: Path) -> None:
+        try:
+            _raw_upload(src, remote, key)
+            report.uploaded.append(remote)
+        except Exception as e:
+            report.errors.append({"file": remote, "error": str(e)})
+
+    # 1) gallery index — render then upload
+    art_local = SITE_TEMPLATE / "NeoGallery.html"
+    if art_local.exists():
+        rendered = _render_if_template(art_local)
+        target = f"{gallery}/NeoGallery.html" if gallery else "NeoGallery.html"
+        _try(target, rendered)
+
+    # 2) per-tag pages
+    for tag in storage.load_tags():
+        if tag["name"] in tag_service.SYSTEM_TAGS:
+            continue
+        html = tag_service._render_tag_html(tag, tag.get("coverPhoto", ""))
+        tmp = Path(tempfile.gettempdir()) / f"_ng_tag_{tag['name']}.html"
+        tmp.write_text(html, encoding="utf-8")
+        target = f"{tag_dir}/{tag['name']}.html" if tag_dir else f"{tag['name']}.html"
+        _try(target, tmp)
+
+    # 3) loader asset (cheap — just always push the active one so renames/uploads land)
+    if config.get().loading_image:
+        loader_local = SITE_TEMPLATE / config.get().loading_image
+        if loader_local.exists():
+            target = f"{gallery}/{config.get().loading_image}" if gallery else config.get().loading_image
+            _try(target, loader_local)
+
+    # 4) media.json — refresh embedded config block
+    if paths.MEDIA_JSON.exists():
+        target = f"{json_dir}/{config.get().media_json_name}" if json_dir else config.get().media_json_name
+        _try(target, paths.MEDIA_JSON)
+
+    return report
+
+
+def _render_if_template(local: Path) -> Path:
+    """if local is a templated HTML in site_template/, apply loader substitutions and
+    return a tempfile path. otherwise pass through unchanged."""
+    if local.suffix.lower() != ".html":
+        return local
+    try:
+        local.relative_to(SITE_TEMPLATE)
+    except ValueError:
+        return local
+    # lazy import: tag_service imports config/storage which are fine, but avoid a top-level cycle
+    from . import tag_service
+    text = local.read_text(encoding="utf-8")
+    rendered = tag_service.apply_loader_substitutions(text)
+    if rendered == text:
+        return local
+    tmp = Path(tempfile.gettempdir()) / f"_ng_render_{local.name}"
+    tmp.write_text(rendered, encoding="utf-8")
+    return tmp
 
 
 def _raw_upload(local: Path, remote: str, api_key: str) -> None:

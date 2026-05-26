@@ -257,6 +257,54 @@ def create_app() -> Flask:
             "errors": report.errors,
         })
 
+    @app.get("/api/site/loader-preview")
+    def site_loader_preview():
+        # serve a single bundled-template file by relative path, scoped to assets/loaders/
+        rel = (request.args.get("path") or "").lstrip("/")
+        if not rel.startswith("assets/loaders/"):
+            return jsonify({"error": "out of scope"}), 400
+        full = installer.SITE_TEMPLATE / rel
+        if not full.is_file():
+            return jsonify({"error": "not found"}), 404
+        return send_from_directory(str(full.parent), full.name)
+
+    @app.get("/api/site/loaders")
+    def site_loaders():
+        # presets bundled in site_template, plus any custom ones the user has uploaded
+        loaders_dir = installer.SITE_TEMPLATE / "assets" / "loaders"
+        items = []
+        if loaders_dir.exists():
+            for f in sorted(loaders_dir.iterdir()):
+                if f.is_file():
+                    items.append({"path": f"assets/loaders/{f.name}", "name": f.stem})
+        return jsonify({"loaders": items})
+
+    @app.post("/api/site/loader/upload")
+    def site_loader_upload():
+        f = request.files.get("file")
+        if not f or not f.filename:
+            return jsonify({"error": "no file"}), 400
+        loaders_dir = installer.SITE_TEMPLATE / "assets" / "loaders"
+        loaders_dir.mkdir(parents=True, exist_ok=True)
+        # prefix custom uploads so they're easy to spot/delete
+        safe = "".join(c for c in f.filename if c.isalnum() or c in "._-").lstrip(".")
+        if not safe:
+            safe = "loader.gif"
+        target = loaders_dir / f"custom-{safe}"
+        f.save(target)
+        return jsonify({"path": f"assets/loaders/{target.name}", "name": target.stem})
+
+    @app.post("/api/site/republish")
+    def site_republish():
+        # re-render & re-upload NeoGallery.html, every per-tag page, the chosen loader asset,
+        # and media.json (so the embedded visitor config block refreshes)
+        report = installer.republish_site()
+        return jsonify({
+            "uploaded": report.uploaded,
+            "skipped": report.skipped,
+            "errors": report.errors,
+        })
+
     @app.get("/api/site/install/stream")
     def site_install_stream():
         # SSE: per-file progress so the wizard can show a live feed

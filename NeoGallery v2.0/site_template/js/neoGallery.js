@@ -2,9 +2,9 @@ function getRandomImages(imageArray, count) {
     let result = [];
     let taken = [];
     let len = imageArray.length;
-  
+
     if (count > len) count = len;
-  
+
     while (result.length < count) {
       let randomIndex = Math.floor(Math.random() * len);
       if (!taken.includes(randomIndex)) {
@@ -14,11 +14,17 @@ function getRandomImages(imageArray, count) {
     }
     return result;
   }
-  
+
   function createImages(galleryElement, tags) {
     fetch("json/media.json")
       .then(response => response.json())
-      .then(originalImageArray => {
+      .then(data => {
+        // media.json may be a bare array (legacy) or { config, posts } (v2.0+)
+        const galleryConfig = (data && !Array.isArray(data) && data.config) ? data.config : {};
+        const originalImageArray = Array.isArray(data) ? data : (data.posts || []);
+        const useThumbs = galleryConfig.useThumbnails !== false;
+        const fullWidth = galleryConfig.fullImageWidth || null;
+
         // Convert the tags string into an array of tags
         var tagArray = tags.split(',');
 
@@ -30,10 +36,8 @@ function getRandomImages(imageArray, count) {
           imageArray = getRandomImages(imageArray, 6);
         }
 
-        // Clear the specific gallery and hide its loader
+        // Clear the specific gallery (also drops the inline loader markup)
         galleryElement.innerHTML = '';
-        const loader = galleryElement.querySelector('.gallery-loader');
-        if (loader) loader.style.display = 'none';
 
         for (var i = 0; i < imageArray.length; i++) {
           var imgData = imageArray[i];
@@ -42,7 +46,8 @@ function getRandomImages(imageArray, count) {
           container.className = 'imageContainer';
 
           var img = document.createElement('img');
-          img.src = imgData.thumbnailSrc;
+          img.src = useThumbs ? imgData.thumbnailSrc : imgData.fullSrc;
+          if (!useThumbs && fullWidth) img.style.width = fullWidth + 'px';
 
           // Closure to preserve imgData context
           (function(imgData) {
@@ -54,8 +59,10 @@ function getRandomImages(imageArray, count) {
               var loadingPlaceholder = document.getElementById("loadingPlaceholder");
 
               modal.style.display = "block";
-              loadingPlaceholder.style.display = "block";
-              modalImg.style.display = "none";
+              if (loadingPlaceholder) {
+                loadingPlaceholder.style.display = "block";
+                modalImg.style.display = "none";
+              }
               document.body.style.overflow = "hidden";
               modalImg.src = imgData.fullSrc;
               titleText.innerHTML = imgData.title;
@@ -66,13 +73,13 @@ function getRandomImages(imageArray, count) {
               newImage.src = imgData.fullSrc;
 
               newImage.onload = function() {
-                  loadingPlaceholder.style.display = "none";
+                  if (loadingPlaceholder) loadingPlaceholder.style.display = "none";
                   modalImg.src = this.src;
                   modalImg.style.display = "block";
               };
 
               newImage.onerror = function() {
-                  loadingPlaceholder.style.display = "none";
+                  if (loadingPlaceholder) loadingPlaceholder.style.display = "none";
                   console.error('Failed to load image:', this.src);
               };
             };
@@ -91,9 +98,11 @@ function getRandomImages(imageArray, count) {
           var modal = document.getElementById("myModal");
           var span = document.getElementsByClassName("close")[0];
 
-          span.onclick = function() { 
-            modal.style.display = "none";
-            document.body.style.overflow = "auto";
+          if (span) {
+            span.onclick = function() {
+              modal.style.display = "none";
+              document.body.style.overflow = "auto";
+            }
           }
 
           window.onclick = function(event) {
@@ -107,16 +116,19 @@ function getRandomImages(imageArray, count) {
       })
       .catch(error => console.error('Error fetching images:', error));
   }
-  
+
   window.onload = function() {
     document.querySelectorAll('.gallery').forEach(gallery => {
         const tags = gallery.dataset.tag;
         createImages(gallery, tags);
     });
 };
-  
-  // Reshuffle only the 'random' gallery
-  document.getElementById('reshuffle').onclick = function() {
-    const allGallery = document.querySelector('.gallery[data-tag="random"]');
-    createImages(allGallery, 'random');
-  };
+
+  // Reshuffle only the 'random' gallery — only wire up if the page actually has one
+  var reshuffleEl = document.getElementById('reshuffle');
+  if (reshuffleEl) {
+    reshuffleEl.onclick = function() {
+      const allGallery = document.querySelector('.gallery[data-tag="random"]');
+      if (allGallery) createImages(allGallery, 'random');
+    };
+  }

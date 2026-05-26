@@ -80,6 +80,43 @@ export function openTagModal(existing, onSaved) {
   coverRow.appendChild(dropZone);
   body.appendChild(coverRow);
 
+  // edit mode also gets an embed-snippet helper so people can drop the gallery
+  // into their own pages without using iframes
+  if (isEdit) {
+    const embedRow = document.createElement('div');
+    embedRow.className = 'form-row';
+    const el = document.createElement('label');
+    el.textContent = 'Embed on another page';
+    embedRow.appendChild(el);
+    const hint = document.createElement('p');
+    hint.className = 'muted';
+    hint.style.fontSize = '12px';
+    hint.style.margin = '0 0 6px';
+    hint.textContent = "Copy this snippet into any HTML page on your site to render this tag's gallery.";
+    embedRow.appendChild(hint);
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn small';
+    copyBtn.textContent = 'Copy embed snippet';
+    copyBtn.addEventListener('click', async () => {
+      try {
+        const [{ config: cfg }, info] = await Promise.all([
+          api.get('/api/settings'),
+          api.get('/api/neocities/info'),
+        ]);
+        if (!info.ok) throw new Error(info.message || 'Could not get site info');
+        const dir = (cfg.neocities.gallery_dir || '').replace(/^\/+|\/+$/g, '');
+        const base = `https://${info.domain}` + (dir ? `/${dir}` : '');
+        const snippet = `<link rel="stylesheet" href="${base}/css/gallery.css">\n<div class="gallery" data-tag="${existing.name}"></div>\n<div id="myModal" class="modal">\n  <span class="close">&times;</span>\n  <img class="modal-content" id="img01">\n  <div id="title"></div><div id="caption"></div>\n</div>\n<script src="${base}/js/neoGallery.js"></script>`;
+        await navigator.clipboard.writeText(snippet);
+        toast('Snippet copied to clipboard', 'success');
+      } catch (e) {
+        toast('Copy failed: ' + e.message, 'error');
+      }
+    });
+    embedRow.appendChild(copyBtn);
+    body.appendChild(embedRow);
+  }
+
   // edit mode gets a "danger zone" with delete-tag tucked away inside the modal
   if (isEdit) {
     const danger = document.createElement('div');

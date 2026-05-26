@@ -33,6 +33,11 @@ class AppConfig:
     art_html_name: str = "NeoGallery.html"
     show_in_random: str = "all"
     onboarding_completed: bool = False
+    # visitor-side gallery options
+    use_thumbnails: bool = True
+    full_image_display_width: int = 400          # used when use_thumbnails is False
+    loading_image: str = "assets/loaders/hourglass.gif"   # relative to gallery_dir; "" disables
+    show_loader: bool = True
     neocities: NeocitiesConfig = field(default_factory=NeocitiesConfig)
     catbox: CatboxConfig = field(default_factory=CatboxConfig)
 

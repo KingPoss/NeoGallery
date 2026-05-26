@@ -44,18 +44,12 @@
 
 <!--if you want to add a new gallery item on your page, add everything between this comment, and the one that states 'snippet end'-->
 <div class="gallery" data-tag="random">
-<!--galleryLoader shows while gallery items are parsed from the media json-->
-    <div class="galleryLoader" >
-        <div>
-        <img src="assets/hourglass.gif" alt="Loading..." >
-        <p>Loading...</p>
-        </div>
-    </div>
+__GALLERY_LOADER__
 </div>
 <!--myModal shows when an image is clicked-->
 <div id="myModal" class="modal">
     <span class="close">&times;</span>
-    <img id="loadingPlaceholder" class="loading" src="assets/hourglass.gif"></img>
+__MODAL_LOADER__
     <img class="modal-content" id="img01">
     <div id="title"></div>
      <div id="caption"></div>

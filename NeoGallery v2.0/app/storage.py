@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from . import paths
+from . import config, paths
 
 
 def _load(path: Path) -> list:
@@ -14,19 +14,39 @@ def _load(path: Path) -> list:
         return []
 
 
-def _save(data: list, path: Path) -> None:
+def _save(data, path: Path) -> None:
     paths.ensure_dirs()
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
     tmp.replace(path)
 
 
+def _media_config_block() -> dict:
+    # this block ships inside media.json so the visitor JS knows how to render
+    cfg = config.get()
+    return {
+        "useThumbnails": bool(cfg.use_thumbnails),
+        "fullImageWidth": int(cfg.full_image_display_width),
+    }
+
+
 def load_media() -> list[dict]:
-    return _load(paths.MEDIA_JSON)
+    # accept both legacy (bare list) and current ({config, posts}) shapes
+    if not paths.MEDIA_JSON.exists():
+        return []
+    try:
+        data = json.loads(paths.MEDIA_JSON.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict) and isinstance(data.get("posts"), list):
+        return data["posts"]
+    return []
 
 
 def save_media(items: list[dict]) -> None:
-    _save(items, paths.MEDIA_JSON)
+    _save({"config": _media_config_block(), "posts": items}, paths.MEDIA_JSON)
 
 
 def load_tags() -> list[dict]:

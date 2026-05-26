@@ -49,19 +49,25 @@ def add_art(
             art_local = paths.ART / name
             if src.resolve() != art_local.resolve():
                 art_local.write_bytes(src.read_bytes())
-            thumb_local = images.make_thumbnail(art_local, paths.THUMBS, cfg.thumb_width)
 
             art_up = image_host.upload(art_local, kind="art", dest_name=name)
-            thumb_up = image_host.upload(thumb_local, kind="thumbnail", dest_name=thumb_local.name)
+
+            if cfg.use_thumbnails:
+                thumb_local = images.make_thumbnail(art_local, paths.THUMBS, cfg.thumb_width)
+                thumb_up = image_host.upload(thumb_local, kind="thumbnail", dest_name=thumb_local.name)
+                thumb_url, thumb_remote = thumb_up.url, thumb_up.remote_id
+            else:
+                # no thumbnails — point the visitor at the full image
+                thumb_url, thumb_remote = art_up.url, art_up.remote_id
 
             entry = {
-                "thumbnailSrc": thumb_up.url,
+                "thumbnailSrc": thumb_url,
                 "fullSrc": art_up.url,
                 "title": it.get("title", "") or "",
                 "description": it.get("description", "") or "",
                 "tags": list(it.get("tags", []) or []),
                 "host": image_host.id,
-                "remoteIds": {"art": art_up.remote_id, "thumbnail": thumb_up.remote_id},
+                "remoteIds": {"art": art_up.remote_id, "thumbnail": thumb_remote},
             }
             media.append(entry)
             added.append(entry)
@@ -135,6 +141,9 @@ def reorder(new_full_src_order: list[str]) -> None:
 
 def regenerate_thumbnails(on_progress: Callable[[UploadProgress], None] | None = None) -> int:
     cfg = config.get()
+    # nothing to do when thumbnails are disabled site-wide
+    if not cfg.use_thumbnails:
+        return 0
     media = storage.load_media()
     total = len(media)
     done = 0

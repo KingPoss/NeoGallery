@@ -37,20 +37,14 @@
 
 <center><h1>Dynamically created gallery for tag: __DATA_TAG__</h1>
 <div class="gallery" data-tag="__DATA_TAG__">
-<!--galleryLoader shows while gallery items are parsed from the media json-->
-    <div class="galleryLoader" >
-        <div>
-        <img src="assets/hourglass.gif" alt="Loading..." >
-        <p>Loading...</p>
-        </div>
-    </div>
+__GALLERY_LOADER__
 </div>
 <a href="__GALLERY_PAGE__"><--BACK TO DIRECTORY</a>
 </center>
 <!--myModal shows when an image is clicked-->
 <div id="myModal" class="modal">
     <span class="close">&times;</span>
-    <img id="loadingPlaceholder" class="loading" src="assets/hourglass.gif"></img>
+__MODAL_LOADER__
     <img class="modal-content" id="img01">
     <div id="title"></div>
      <div id="caption"></div>

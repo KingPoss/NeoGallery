@@ -8,13 +8,17 @@
   "art_html_name": "NeoGallery.html",
   "show_in_random": "all",
   "onboarding_completed": true,
+  "use_thumbnails": true,
+  "full_image_display_width": 400,
+  "loading_image": "assets/loaders/custom-bouncyboi.gif",
+  "show_loader": true,
   "neocities": {
-    "api_key": "",
-    "art_dir": "neotester6/assets/media",
-    "thumb_dir": "neotester6/assets/thumbnails",
-    "json_dir": "neotester6/json",
-    "tag_dir": "neotester6",
-    "gallery_dir": "neotester6"
+    "api_key": "cd1423f46595bfc040ad839fa6dadea5",
+    "art_dir": "neotester7/assets/media",
+    "thumb_dir": "neotester7/assets/thumbnails",
+    "json_dir": "neotester7/json",
+    "tag_dir": "neotester7",
+    "gallery_dir": "neotester7"
   },
   "catbox": {
     "userhash": ""

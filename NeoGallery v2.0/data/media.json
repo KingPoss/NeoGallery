@@ -1,31 +1,23 @@
-[
-  {
-    "thumbnailSrc": "assets/thumbnails/thumbnail_oAo.png",
-    "fullSrc": "assets/media/oAo.png",
-    "title": "deer test",
-    "description": "tester deer",
-    "tags": [
-      "random"
-    ],
-    "host": "neocities",
-    "remoteIds": {
-      "art": "neotester6/assets/media/oAo.png",
-      "thumbnail": "neotester6/assets/thumbnails/thumbnail_oAo.png"
-    }
+{
+  "config": {
+    "useThumbnails": true,
+    "fullImageWidth": 400
   },
-  {
-    "thumbnailSrc": "assets/thumbnails/thumbnail_imatydyge.png",
-    "fullSrc": "assets/media/imatydyge.png",
-    "title": "test1",
-    "description": "test1",
-    "tags": [
-      "random",
-      "test99"
-    ],
-    "host": "neocities",
-    "remoteIds": {
-      "art": "neotester6/assets/media/imatydyge.png",
-      "thumbnail": "neotester6/assets/thumbnails/thumbnail_imatydyge.png"
+  "posts": [
+    {
+      "thumbnailSrc": "assets/thumbnails/thumbnail_aaadfg.png",
+      "fullSrc": "assets/media/aaadfg.png",
+      "title": "tester",
+      "description": "tester",
+      "tags": [
+        "random",
+        "tester1"
+      ],
+      "host": "neocities",
+      "remoteIds": {
+        "art": "neotester7/assets/media/aaadfg.png",
+        "thumbnail": "neotester7/assets/thumbnails/thumbnail_aaadfg.png"
+      }
     }
-  }
-]
+  ]
+}

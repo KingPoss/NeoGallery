@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+
+# NeoGallery v2 runtime state (user-specific; may contain API keys)
+NeoGallery v2.0/config.json
+NeoGallery v2.0/data/
+NeoGallery v2.0/assets/
+NeoGallery v2.0/templates/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
