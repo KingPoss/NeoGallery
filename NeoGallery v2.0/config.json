@@ -1,0 +1,22 @@
+{
+  "active_image_host": "neocities",
+  "thumb_width": 150,
+  "per_page": 20,
+  "dark_mode": true,
+  "media_json_name": "media.json",
+  "tag_list_json_name": "tags.json",
+  "art_html_name": "NeoGallery.html",
+  "show_in_random": "all",
+  "onboarding_completed": true,
+  "neocities": {
+    "api_key": "91e336a8cedde9c681f5be584473f405",
+    "art_dir": "neotester6/assets/media",
+    "thumb_dir": "neotester6/assets/thumbnails",
+    "json_dir": "neotester6/json",
+    "tag_dir": "neotester6",
+    "gallery_dir": "neotester6"
+  },
+  "catbox": {
+    "userhash": ""
+  }
+}

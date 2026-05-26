@@ -1,0 +1,5 @@
+flask
+pywebview
+pillow
+requests
+neocities

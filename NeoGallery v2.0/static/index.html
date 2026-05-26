@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NeoGallery</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-name">NeoGallery</span>
+      <span class="brand-version">v2.0</span>
+    </div>
+    <nav class="tabs">
+      <a class="tab" data-view="home" href="#home">Gallery</a>
+      <a class="tab" data-view="settings" href="#settings">Settings</a>
+    </nav>
+    <div class="host-pill" id="active-host-pill" title="Active image host">—</div>
+  </header>
+
+  <main id="view"></main>
+
+  <!-- drop overlay (shows when user drags files anywhere) -->
+  <div id="drop-overlay" class="drop-overlay" hidden>
+    <div class="drop-overlay-inner">
+      <div class="drop-icon">⬇</div>
+      <p>Drop images to start a new post</p>
+    </div>
+  </div>
+
+  <!-- upload draft modal (filled after a drop) -->
+  <div id="upload-modal" class="modal" hidden>
+    <div class="modal-card large">
+      <header class="modal-head">
+        <h2>New posts <span class="muted" id="draft-count">0</span></h2>
+        <button class="icon-btn" id="close-upload">✕</button>
+      </header>
+      <div class="modal-body" id="draft-list"></div>
+      <footer class="modal-foot">
+        <span class="muted" id="upload-status"></span>
+        <div class="row gap">
+          <button class="btn ghost" id="add-more-drafts">Add more</button>
+          <button class="btn primary" id="submit-uploads">Upload all</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- generic confirm modal -->
+  <div id="confirm-modal" class="modal" hidden>
+    <div class="modal-card">
+      <header class="modal-head"><h2 id="confirm-title">Confirm</h2></header>
+      <div class="modal-body"><p id="confirm-message"></p></div>
+      <footer class="modal-foot">
+        <button class="btn ghost" id="confirm-cancel">Cancel</button>
+        <button class="btn danger" id="confirm-ok">Delete</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- edit-post modal (also used for read-only preview) -->
+  <div id="edit-modal" class="modal" hidden>
+    <div class="modal-card large">
+      <header class="modal-head">
+        <h2 id="edit-modal-title"></h2>
+        <button class="icon-btn" id="close-edit">✕</button>
+      </header>
+      <div class="modal-body" id="edit-body"></div>
+      <footer class="modal-foot" id="edit-foot">
+        <button class="btn ghost" id="edit-cancel">Cancel</button>
+        <button class="btn primary" id="edit-save">Save</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- tag editor modal -->
+  <div id="tag-modal" class="modal" hidden>
+    <div class="modal-card">
+      <header class="modal-head">
+        <h2 id="tag-modal-title">New tag</h2>
+        <button class="icon-btn" id="close-tag">✕</button>
+      </header>
+      <div class="modal-body" id="tag-body"></div>
+      <footer class="modal-foot">
+        <button class="btn ghost" id="tag-cancel">Cancel</button>
+        <button class="btn primary" id="tag-save">Save</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- onboarding overlay (auto-shows on first run) -->
+  <div id="onboarding" class="onboarding" hidden>
+    <div class="onboarding-card">
+      <div class="onboarding-head">
+        <div class="onboarding-steps" id="onboarding-steps"></div>
+        <a class="onboarding-skip" id="onboarding-skip" href="#">Skip setup</a>
+      </div>
+      <div class="onboarding-body" id="onboarding-body"></div>
+    </div>
+  </div>
+
+  <!-- toast container -->
+  <div id="toasts" class="toasts"></div>
+
+  <!-- hidden file input used by buttons -->
+  <input type="file" id="hidden-file-input" accept="image/*" multiple hidden>
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

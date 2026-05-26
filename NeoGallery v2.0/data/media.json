@@ -1,0 +1,31 @@
+[
+  {
+    "thumbnailSrc": "assets/thumbnails/thumbnail_oAo.png",
+    "fullSrc": "assets/media/oAo.png",
+    "title": "deer test",
+    "description": "tester deer",
+    "tags": [
+      "random"
+    ],
+    "host": "neocities",
+    "remoteIds": {
+      "art": "neotester6/assets/media/oAo.png",
+      "thumbnail": "neotester6/assets/thumbnails/thumbnail_oAo.png"
+    }
+  },
+  {
+    "thumbnailSrc": "assets/thumbnails/thumbnail_imatydyge.png",
+    "fullSrc": "assets/media/imatydyge.png",
+    "title": "test1",
+    "description": "test1",
+    "tags": [
+      "random",
+      "test99"
+    ],
+    "host": "neocities",
+    "remoteIds": {
+      "art": "neotester6/assets/media/imatydyge.png",
+      "thumbnail": "neotester6/assets/thumbnails/thumbnail_imatydyge.png"
+    }
+  }
+]

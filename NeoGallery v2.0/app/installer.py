@@ -1,0 +1,162 @@
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable
+
+import requests
+
+from . import config, paths
+from .hosts import registry
+
+
+SITE_TEMPLATE = paths.BASE / "site_template"
+
+
+@dataclass
+class InstallReport:
+    uploaded: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
+    errors: list[dict] = field(default_factory=list)
+
+
+def test_neocities_connection() -> tuple[bool, str]:
+    key = config.get().neocities.api_key
+    if not key:
+        return (False, "No API key set")
+    try:
+        r = requests.get(
+            "https://neocities.org/api/info",
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=10,
+        )
+        if r.status_code == 200:
+            info = r.json().get("info", {})
+            name = info.get("sitename") or "your site"
+            return (True, f"Connected to {name}")
+        if r.status_code == 401:
+            return (False, "Invalid API key")
+        return (False, f"Neocities returned {r.status_code}")
+    except requests.RequestException as e:
+        return (False, f"Connection failed: {e}")
+
+
+# template path  ->  remote path builder (cfg -> str)
+def _remote_path_for(rel: str) -> str:
+    n = config.get().neocities
+    gallery = (n.gallery_dir or "").strip("/")
+    json_dir = (n.json_dir or "").strip("/")
+
+    if rel == "NeoGallery.html":
+        return f"{gallery}/NeoGallery.html" if gallery else "NeoGallery.html"
+    if rel == "tagTemplate.html":
+        return ""  # local-only, never uploaded
+    if rel.startswith("css/") or rel.startswith("js/") or rel.startswith("assets/"):
+        return f"{gallery}/{rel}" if gallery else rel
+    if rel == "json/media.json":
+        return f"{json_dir}/media.json" if json_dir else "media.json"
+    if rel == "json/tags.json":
+        return f"{json_dir}/tags.json" if json_dir else "tags.json"
+    return rel
+
+
+def _walk_template() -> list[tuple[Path, str]]:
+    """yields (local_path, remote_path) for every file we'd consider uploading."""
+    out = []
+    if not SITE_TEMPLATE.exists():
+        return out
+    for f in sorted(SITE_TEMPLATE.rglob("*")):
+        if not f.is_file():
+            continue
+        rel = f.relative_to(SITE_TEMPLATE).as_posix()
+        remote = _remote_path_for(rel)
+        if not remote:
+            continue
+        out.append((f, remote))
+    return out
+
+
+def _remote_inventory() -> set[str]:
+    """fetch every file path that already exists on the user's neocities site."""
+    key = config.get().neocities.api_key
+    if not key:
+        return set()
+    try:
+        r = requests.get(
+            "https://neocities.org/api/list",
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=15,
+        )
+        r.raise_for_status()
+        files = r.json().get("files", [])
+        return {f["path"].lstrip("/") for f in files if not f.get("is_directory")}
+    except (requests.RequestException, ValueError, KeyError):
+        return set()  # if listing fails, treat as empty (we'll upload everything)
+
+
+def install_site_template(progress_cb: Callable[[str, str, str], None] | None = None) -> InstallReport:
+    report = InstallReport()
+    key = config.get().neocities.api_key
+    if not key:
+        report.errors.append({"file": "(setup)", "error": "Neocities API key missing"})
+        return report
+
+    try:
+        existing = _remote_inventory()
+    except Exception as e:
+        report.errors.append({"file": "(listing site)", "error": f"Couldn't list your site: {e}"})
+        return report
+
+    plan = _walk_template()
+
+    for local, remote in plan:
+        normalized = remote.lstrip("/")
+        if normalized in existing:
+            report.skipped.append(remote)
+            if progress_cb:
+                progress_cb(remote, "skipped", "already exists")
+            continue
+        if progress_cb:
+            progress_cb(remote, "uploading", "")
+        try:
+            _raw_upload(local, remote, key)
+        except requests.Timeout:
+            msg = "timed out after 60s"
+            report.errors.append({"file": remote, "error": msg})
+            if progress_cb: progress_cb(remote, "error", msg)
+            continue
+        except requests.HTTPError as e:
+            body = (e.response.text or "")[:200] if e.response is not None else ""
+            msg = f"HTTP {e.response.status_code if e.response is not None else '?'}: {body or str(e)}"
+            report.errors.append({"file": remote, "error": msg})
+            if progress_cb: progress_cb(remote, "error", msg)
+            continue
+        except requests.RequestException as e:
+            msg = f"network error: {e}"
+            report.errors.append({"file": remote, "error": msg})
+            if progress_cb: progress_cb(remote, "error", msg)
+            continue
+        except Exception as e:
+            report.errors.append({"file": remote, "error": str(e)})
+            if progress_cb: progress_cb(remote, "error", str(e))
+            continue
+
+        report.uploaded.append(remote)
+        if progress_cb:
+            progress_cb(remote, "uploaded", "")
+
+    return report
+
+
+def _raw_upload(local: Path, remote: str, api_key: str) -> None:
+    """direct POST to neocities so we control the timeout and remote path."""
+    target = remote.lstrip("/")
+    with open(local, "rb") as f:
+        r = requests.post(
+            "https://neocities.org/api/upload",
+            headers={"Authorization": f"Bearer {api_key}"},
+            files={target: (local.name, f)},
+            timeout=60,
+        )
+    r.raise_for_status()
+    body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+    if body.get("result") and body["result"] != "success":
+        raise RuntimeError(body.get("message") or "upload reported failure")
