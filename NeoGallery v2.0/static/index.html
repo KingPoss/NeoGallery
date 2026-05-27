@@ -9,14 +9,13 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <span class="brand-name">NeoGallery</span>
-      <span class="brand-version">v2.0</span>
+      <span class="brand-name" id="brand-name">Gallery</span>
     </div>
     <nav class="tabs">
       <a class="tab" data-view="home" href="#home">Gallery</a>
       <a class="tab" data-view="settings" href="#settings">Settings</a>
     </nav>
-    <div class="host-pill" id="active-host-pill" title="Active image host">—</div>
+    <div class="host-pill" id="active-host-pill" title="Active image host">--</div>
   </header>
 
   <main id="view"></main>
@@ -86,6 +85,20 @@
         <button class="btn ghost" id="tag-cancel">Cancel</button>
         <button class="btn primary" id="tag-save">Save</button>
       </footer>
+    </div>
+  </div>
+
+  <!-- sync progress modal (shared by drift toast, Settings button, wizard) -->
+  <div id="sync-modal" class="modal" hidden>
+    <div class="modal-card large">
+      <header class="modal-head">
+        <h2 id="sync-modal-title">Syncing from Neocities</h2>
+        <button class="icon-btn" id="sync-modal-close" onclick="document.getElementById('sync-modal').hidden = true">✕</button>
+      </header>
+      <div class="modal-body">
+        <p class="muted" id="sync-status" style="font-size:12px;margin:0 0 8px"></p>
+        <div id="sync-list" class="install-list" style="max-height:50vh;overflow-y:auto"></div>
+      </div>
     </div>
   </div>
 

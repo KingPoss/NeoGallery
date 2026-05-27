@@ -38,6 +38,9 @@ class AppConfig:
     full_image_display_width: int = 400          # used when use_thumbnails is False
     loading_image: str = "assets/loaders/hourglass.gif"   # relative to gallery_dir; "" disables
     show_loader: bool = True
+    # snapshot of gallery settings as of the last successful republish, used to
+    # show a "pending changes" indicator in the settings UI
+    last_applied_gallery_state: dict = field(default_factory=dict)
     neocities: NeocitiesConfig = field(default_factory=NeocitiesConfig)
     catbox: CatboxConfig = field(default_factory=CatboxConfig)
 
@@ -70,7 +73,7 @@ def save(cfg: AppConfig) -> None:
 
 
 def _maybe_migrate_from_v1() -> AppConfig | None:
-    # only pull the API key — v2 owns dirs/filenames now, we don't want stale v1 paths
+    # only pull the API key -- v2 owns dirs/filenames now, we don't want stale v1 paths
     # leaking back in every time config.json is reset
     env = Path(paths.BASE).parent / "NeoGallery v1.0" / ".env"
     if not env.exists():

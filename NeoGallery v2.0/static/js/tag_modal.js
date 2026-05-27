@@ -57,7 +57,7 @@ export function openTagModal(existing, onSaved) {
     stagedCover = f;
     preview.src = URL.createObjectURL(f);
     preview.hidden = false;
-    hint.innerHTML = `<span class="muted">${f.name} — drop or click to replace</span>`;
+    hint.innerHTML = `<span class="muted">${f.name} -- drop or click to replace</span>`;
   }
 
   file.addEventListener('change', () => {
@@ -186,7 +186,7 @@ function renderSystemTag(existing, onSaved) {
   const p = document.createElement('p');
   p.className = 'muted';
   p.style.lineHeight = '1.5';
-  p.innerHTML = `<strong>#${existing.name}</strong> is a built-in tag — the visitor gallery uses it to show a shuffled selection of posts. It doesn't have a page, cover, or other settings.<br><br>Check it on any post to include that post in the shuffle.`;
+  p.innerHTML = `<strong>#${existing.name}</strong> is a built-in tag -- the visitor gallery uses it to show a shuffled selection of posts. It doesn't have a page, cover, or other settings.<br><br>Check it on any post to include that post in the shuffle.`;
   body.appendChild(p);
 
   const danger = document.createElement('div');
@@ -214,7 +214,7 @@ function renderSystemTag(existing, onSaved) {
   danger.appendChild(delBtn);
   body.appendChild(danger);
 
-  // hide the footer's Save button — nothing to save for a system tag
+  // hide the footer's Save button -- nothing to save for a system tag
   document.getElementById('tag-cancel').onclick = () => closeModal('tag-modal');
   document.getElementById('close-tag').onclick = () => closeModal('tag-modal');
   const saveBtn = document.getElementById('tag-save');
