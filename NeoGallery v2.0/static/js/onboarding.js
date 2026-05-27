@@ -1,23 +1,10 @@
 import { api, toast } from './api.js';
+import { SPINNER_FRAMES, runSpinner, feedRow, setFeedRow } from './ui.js';
 
 const STEPS = ['welcome', 'connect', 'verify', 'install', 'done'];
 let stepIdx = 0;
 let onFinish = null;
 let siteDomain = '';   // captured in step 3, used to build the live URL preview in step 4
-
-const SPINNER_FRAMES = ['-', '\\', '|', '/'];
-let spinnerTick = 0;
-let spinnerTimer = null;
-function ensureSpinnerRunning() {
-  if (spinnerTimer) return;
-  spinnerTimer = setInterval(() => {
-    spinnerTick = (spinnerTick + 1) % SPINNER_FRAMES.length;
-    const ch = SPINNER_FRAMES[spinnerTick];
-    const live = document.querySelectorAll('.install-row.uploading .icon');
-    if (!live.length) { clearInterval(spinnerTimer); spinnerTimer = null; return; }
-    live.forEach(el => { el.textContent = ch; });
-  }, 120);
-}
 
 export function startOnboarding(onFinishCb) {
   onFinish = onFinishCb || (() => {});
@@ -165,6 +152,47 @@ function stepVerify(body) {
 
 // ---------- step 4: install ----------
 function stepInstall(body) {
+  body.innerHTML = `<h1>Checking your site...</h1>`;
+
+  // if NeoGallery is already installed on this site, offer to sync instead of reinstalling
+  api.get('/api/sync/state').then(state => {
+    if (state.ok && state.detected) {
+      renderInstallOrSyncFork(body, state);
+    } else {
+      renderInstallPrompt(body);
+    }
+  }).catch(() => renderInstallPrompt(body));
+}
+
+function renderInstallOrSyncFork(body, state) {
+  body.innerHTML = '';
+  const h1 = document.createElement('h1');
+  h1.textContent = 'NeoGallery is already on this site';
+  body.appendChild(h1);
+  const p = document.createElement('p');
+  p.innerHTML = `Found <strong>${state.remote_posts}</strong> post${state.remote_posts === 1 ? '' : 's'} ` +
+    `at <code>${escapeHtml(state.suggested_dirs?.gallery_dir || '(root)')}</code> on your site. ` +
+    `You can pull everything to this machine instead of starting fresh.`;
+  body.appendChild(p);
+
+  body.appendChild(actions([
+    ghost('Install fresh anyway', () => renderInstallPrompt(body)),
+    primary('Sync existing site', async () => {
+      // apply the detected dirs so subsequent sync + future republishes target the right place
+      if (state.suggested_dirs) {
+        try { await api.put('/api/settings', { neocities: state.suggested_dirs }); } catch {}
+      }
+      const sync = await import('./sync.js');
+      sync.runSyncFlow({ confirmOverwrite: false, onDone: () => {
+        // mark onboarding complete and close the wizard once the modal is dismissed
+        api.post('/api/onboarding/complete', {}).catch(() => {});
+        close();
+      } });
+    }),
+  ]));
+}
+
+function renderInstallPrompt(body) {
   body.innerHTML = '';
   const h1 = document.createElement('h1'); h1.textContent = 'Install gallery files?';
   body.appendChild(h1);
@@ -284,23 +312,23 @@ function stepInstall(body) {
             const { file, status, note } = data;
             let row = rows.get(file);
             if (!row) {
-              row = installRow('uploading', SPINNER_FRAMES[0], file, 'uploading...');
+              row = feedRow('uploading', SPINNER_FRAMES[0], file, 'uploading...');
               rows.set(file, row);
               list.appendChild(row);
               row.scrollIntoView({ block: 'nearest' });
-              ensureSpinnerRunning();
+              runSpinner();
             }
             if (status === 'uploading') {
-              setRow(row, 'uploading', SPINNER_FRAMES[spinnerTick], file, 'uploading...');
-              ensureSpinnerRunning();
+              setFeedRow(row, 'uploading', SPINNER_FRAMES[0], file, 'uploading...');
+              runSpinner();
             } else if (status === 'uploaded') {
-              setRow(row, 'uploaded', '✓', file, 'uploaded');
+              setFeedRow(row, 'uploaded', '✓', file, 'uploaded');
               uploaded++;
             } else if (status === 'skipped') {
-              setRow(row, 'skipped', '—', file, note || 'already exists');
+              setFeedRow(row, 'skipped', '--', file, note || 'already exists');
               skipped++;
             } else if (status === 'error') {
-              setRow(row, 'error', '✗', file, note || 'error');
+              setFeedRow(row, 'error', '✗', file, note || 'error');
               errored++;
             }
           };
@@ -335,22 +363,6 @@ function stepDone(body) {
 }
 
 // ---------- helpers ----------
-
-function installRow(klass, icon, path, note) {
-  const r = document.createElement('div'); r.className = 'install-row ' + klass;
-  const i = document.createElement('span'); i.className = 'icon'; i.textContent = icon;
-  const p = document.createElement('span'); p.className = 'path'; p.textContent = path;
-  const n = document.createElement('span'); n.className = 'note'; n.textContent = note;
-  r.appendChild(i); r.appendChild(p); r.appendChild(n);
-  return r;
-}
-
-function setRow(row, klass, icon, path, note) {
-  row.className = 'install-row ' + klass;
-  row.children[0].textContent = icon;
-  row.children[1].textContent = path;
-  row.children[2].textContent = note;
-}
 
 function actions(children) {
   const a = document.createElement('div'); a.className = 'onboarding-actions';

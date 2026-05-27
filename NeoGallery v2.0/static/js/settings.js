@@ -1,4 +1,5 @@
 import { api, toast } from './api.js';
+import { runSpinner, feedRow, setFeedRow } from './ui.js';
 
 export async function renderSettings(root) {
   const { config, hosts } = await api.get('/api/settings');
@@ -17,40 +18,50 @@ export async function renderSettings(root) {
 async function galleryCard(config) {
   const c = card('Gallery', 'How your gallery looks to visitors on your live site.');
 
+  // local mirror of the gallery settings so the pending-changes indicator
+  // can diff against the last-applied snapshot without re-fetching every keystroke
+  const current = {
+    use_thumbnails: !!config.use_thumbnails,
+    thumb_width: config.thumb_width,
+    full_image_display_width: config.full_image_display_width,
+    loading_image: config.show_loader ? (config.loading_image || '') : '',
+    show_loader: !!config.show_loader,
+  };
+  const lastApplied = config.last_applied_gallery_state || {};
+  let indicatorEl = null;  // wired up below; updateIndicator() rebuilds its contents
+
   // ---------- thumbnails ----------
   c.appendChild(subsection('Thumbnails'));
 
-  const thumbToggle = checkRow('Generate thumbnails', !!config.use_thumbnails);
+  const thumbToggle = checkRow('Use thumbnails', !!config.use_thumbnails);
   c.appendChild(thumbToggle.row);
 
-  const widthOn = numberInput('Width (px)', config.thumb_width, 50, 800, v => save({ thumb_width: v }));
+  const widthOn = numberInput('Width (px)', config.thumb_width, 50, 800, async v => {
+    if (v === current.thumb_width) return;  // no-op if value unchanged on blur
+    current.thumb_width = v; updateIndicator();
+    await save({ thumb_width: v });
+    if (current.use_thumbnails) runRegen();
+  });
   c.appendChild(widthOn);
 
-  const regenBtn = btn('Regenerate all thumbnails', 'ghost', async () => {
-    regenBtn.disabled = true;
-    regenBtn.textContent = 'Regenerating...';
-    try {
-      const { regenerated } = await api.post('/api/media/regenerate-thumbs', {});
-      toast(`Regenerated ${regenerated} thumbnails`, 'success');
-    } catch (e) { toast('Failed: ' + e.message, 'error'); }
-    regenBtn.disabled = false;
-    regenBtn.textContent = 'Regenerate all thumbnails';
+  const widthOff = numberInput('Display full image at width (px)', config.full_image_display_width, 50, 2000, async v => {
+    current.full_image_display_width = v; updateIndicator();
+    await save({ full_image_display_width: v });
   });
-  regenBtn.style.marginTop = '6px';
-  c.appendChild(regenBtn);
-
-  const widthOff = numberInput('Display full image at width (px)', config.full_image_display_width, 50, 2000, v => save({ full_image_display_width: v }));
   c.appendChild(widthOff);
 
   const syncThumbVisibility = (on) => {
     widthOn.hidden = !on;
-    regenBtn.style.display = on ? '' : 'none';
     widthOff.hidden = on;
   };
   syncThumbVisibility(!!config.use_thumbnails);
   thumbToggle.cb.addEventListener('change', async () => {
+    const turningOn = thumbToggle.cb.checked && !current.use_thumbnails;
+    current.use_thumbnails = thumbToggle.cb.checked;
     syncThumbVisibility(thumbToggle.cb.checked);
+    updateIndicator();
     await save({ use_thumbnails: thumbToggle.cb.checked });
+    if (turningOn) runRegen();
   });
 
   // ---------- throbber ----------
@@ -88,7 +99,7 @@ async function galleryCard(config) {
       sel.appendChild(o);
     }
     const noneOpt = document.createElement('option');
-    noneOpt.value = ''; noneOpt.textContent = 'None — show image as it loads';
+    noneOpt.value = ''; noneOpt.textContent = 'None -- show image as it loads';
     if (!selectedPath) noneOpt.selected = true;
     sel.appendChild(noneOpt);
     // preview via dedicated endpoint so we don't fight Flask's static routing
@@ -106,9 +117,13 @@ async function galleryCard(config) {
   sel.addEventListener('change', async () => {
     const v = sel.value;
     if (!v) {
+      current.show_loader = false; current.loading_image = '';
+      updateIndicator();
       await save({ show_loader: false });
       updatePreviewFor('', null);
     } else {
+      current.show_loader = true; current.loading_image = v;
+      updateIndicator();
       await save({ show_loader: true, loading_image: v });
       updatePreviewFor(v, null);
     }
@@ -121,6 +136,8 @@ async function galleryCard(config) {
     try {
       const res = await api.form('/api/site/loader/upload', fd);
       await refillThrobberOptions(res.path);
+      current.show_loader = true; current.loading_image = res.path;
+      updateIndicator();
       await save({ show_loader: true, loading_image: res.path });
       toast(`Throbber added: ${res.name}`, 'success');
     } catch (e) {
@@ -130,30 +147,164 @@ async function galleryCard(config) {
   });
 
   // ---------- republish ----------
-  const applyDivider = subsection('Publish');
-  c.appendChild(applyDivider);
+  c.appendChild(subsection('Publish'));
 
   const applyHint = document.createElement('p');
   applyHint.className = 'muted'; applyHint.style.fontSize = '12px'; applyHint.style.margin = '0 0 8px';
   applyHint.textContent = "Re-render and re-upload the gallery pages so changes above take effect on the live site.";
   c.appendChild(applyHint);
 
-  const applyBtn = btn('Apply changes (republish gallery)', 'primary', async () => {
-    applyBtn.disabled = true;
-    applyBtn.textContent = 'Republishing...';
-    try {
-      const report = await api.post('/api/site/republish', {});
-      const ok = report.uploaded.length;
-      const errs = report.errors.length;
-      if (errs) toast(`Republished ${ok} files, ${errs} error(s)`, 'error');
-      else toast(`Republished ${ok} files`, 'success');
-    } catch (e) {
-      toast('Republish failed: ' + e.message, 'error');
+  const applyRow = document.createElement('div');
+  applyRow.className = 'row gap';
+  applyRow.style.alignItems = 'center';
+  applyRow.style.flexWrap = 'wrap';
+
+  const applyBtn = btn('Apply changes (republish gallery)', 'primary', () => runRepublish());
+  applyRow.appendChild(applyBtn);
+
+  indicatorEl = document.createElement('span');
+  indicatorEl.className = 'pending-indicator-wrap';
+  applyRow.appendChild(indicatorEl);
+
+  c.appendChild(applyRow);
+
+  // expandable list of diff lines (toggled by the "(?)" link inside the indicator)
+  const pendingPanel = document.createElement('div');
+  pendingPanel.className = 'pending-panel';
+  pendingPanel.hidden = true;
+  c.appendChild(pendingPanel);
+
+  // streaming republish progress feed below the button
+  const feed = document.createElement('div');
+  feed.className = 'install-list';
+  feed.style.marginTop = '10px';
+  c.appendChild(feed);
+
+  // restore the last in-process republish report so persisted errors stay visible
+  // even if the user navigated away and came back
+  try {
+    const last = await api.get('/api/site/republish/last');
+    if (last.present && (last.errors?.length || 0) > 0) {
+      paintFeedFromReport(feed, last);
     }
+  } catch {}
+
+  updateIndicator();
+
+  // ---------- closures (have to live here so they can see current/feed/indicatorEl) ----------
+
+  function updateIndicator() {
+    if (!indicatorEl) return;
+    const diff = diffPending(current, lastApplied);
+    indicatorEl.innerHTML = '';
+    pendingPanel.hidden = true;
+    pendingPanel.innerHTML = '';
+    if (!diff.length) return;
+
+    const dot = document.createElement('span'); dot.className = 'pending-dot'; dot.textContent = '●';
+    indicatorEl.appendChild(dot);
+    const text = document.createTextNode(` Live site has ${diff.length} pending change${diff.length === 1 ? '' : 's'} `);
+    indicatorEl.appendChild(text);
+    const q = document.createElement('a');
+    q.className = 'pending-q'; q.href = '#'; q.textContent = '(?)';
+    q.addEventListener('click', e => {
+      e.preventDefault();
+      if (pendingPanel.hidden) {
+        renderPendingPanel(pendingPanel, diff);
+        pendingPanel.hidden = false;
+      } else {
+        pendingPanel.hidden = true;
+      }
+    });
+    indicatorEl.appendChild(q);
+  }
+
+  async function runRegen() {
+    const pill = openStatusPill('Regenerating thumbnails...');
+    let total = 0;
+    await new Promise(resolve => {
+      const es = new EventSource('/api/media/regenerate-thumbs/stream');
+      es.onmessage = ev => {
+        let d; try { d = JSON.parse(ev.data); } catch { return; }
+        if (d.done) {
+          es.close();
+          if (d.fatal) {
+            pill.close();
+            toast('Regenerate failed: ' + d.fatal, 'error');
+          } else if (d.count === 0) {
+            pill.close();  // no posts → nothing to show
+          } else {
+            pill.update(`Regenerated ${d.count} thumbnails`);
+            setTimeout(() => pill.close(), 1800);
+          }
+          resolve();
+          return;
+        }
+        if (d.total) total = d.total;
+        if (d.status === 'uploading') {
+          pill.update(`Regenerating ${d.index} of ${total} thumbnails...`);
+        }
+      };
+      es.onerror = () => { es.close(); pill.close(); resolve(); };
+    });
+  }
+
+  async function runRepublish() {
+    applyBtn.disabled = true;
+    const orig = applyBtn.textContent;
+    applyBtn.textContent = 'Republishing...';
+    feed.innerHTML = '';
+    const rows = new Map();
+
+    await new Promise(resolve => {
+      const es = new EventSource('/api/site/republish/stream');
+      let errors = 0;
+      es.onmessage = ev => {
+        let d; try { d = JSON.parse(ev.data); } catch { return; }
+        if (d.done) {
+          es.close();
+          if (d.fatal) {
+            toast('Republish failed: ' + d.fatal, 'error');
+          } else {
+            const ok = d.summary?.uploaded ?? 0;
+            const errs = d.summary?.errors ?? 0;
+            if (errs) {
+              toast(`Republished ${ok} files, ${errs} error(s)`, 'error');
+            } else {
+              toast(`Republished ${ok} files`, 'success');
+              // success → snapshot moved server-side; pull fresh config and clear diff
+              Object.assign(lastApplied, current);
+              updateIndicator();
+              // auto-clear the feed after a beat so the card stays uncluttered
+              setTimeout(() => { feed.innerHTML = ''; }, 3000);
+            }
+          }
+          resolve();
+          return;
+        }
+        const { file, status, note } = d;
+        let row = rows.get(file);
+        if (!row) {
+          row = feedRow('uploading', '-', file, 'uploading...');
+          rows.set(file, row);
+          feed.appendChild(row);
+        }
+        if (status === 'uploading') {
+          setFeedRow(row, 'uploading', '-', file, 'uploading...');
+          runSpinner();
+        } else if (status === 'uploaded') {
+          setFeedRow(row, 'uploaded', '✓', file, 'uploaded');
+        } else if (status === 'error') {
+          setFeedRow(row, 'error', '✗', file, note || 'error');
+          errors++;
+        }
+      };
+      es.onerror = () => { es.close(); resolve(); };
+    });
+
     applyBtn.disabled = false;
-    applyBtn.textContent = 'Apply changes (republish gallery)';
-  });
-  c.appendChild(applyBtn);
+    applyBtn.textContent = orig;
+  }
 
   return c;
 }
@@ -191,7 +342,7 @@ function hostingCard(config, hosts) {
   const adv = document.createElement('details');
   adv.className = 'settings-advanced';
   const summary = document.createElement('summary');
-  summary.textContent = 'Advanced — remote folders';
+  summary.textContent = 'Advanced -- remote folders';
   adv.appendChild(summary);
 
   const advHint = document.createElement('p');
@@ -239,6 +390,13 @@ function appearanceCard(config) {
 function maintenanceCard() {
   const c = card('Maintenance');
   const row = document.createElement('div'); row.className = 'row gap';
+  row.style.flexWrap = 'wrap';
+
+  const syncBtn = btn('Sync from Neocities', 'ghost', async () => {
+    const m = await import('./sync.js');
+    m.runSyncFlow();
+  });
+  row.appendChild(syncBtn);
 
   const importBtn = btn('Import data from v1.0', 'ghost', async () => {
     try {
@@ -336,4 +494,70 @@ function btn(label, kind, onclick) {
   b.textContent = label;
   b.addEventListener('click', onclick);
   return b;
+}
+
+// ---------- pending-changes diff ----------
+
+const PENDING_LABELS = {
+  use_thumbnails: 'Use thumbnails',
+  thumb_width: 'Width',
+  full_image_display_width: 'Full-image width',
+  loading_image: 'Throbber',
+  show_loader: 'Throbber shown',
+};
+
+function _fmtVal(key, v) {
+  if (v === undefined || v === null || v === '') return '(none)';
+  if (key === 'use_thumbnails' || key === 'show_loader') return v ? 'on' : 'off';
+  if (key === 'loading_image') return String(v).split('/').pop().replace(/\.[^.]+$/, '');
+  if (key.endsWith('_width') || key === 'thumb_width') return `${v} px`;
+  return String(v);
+}
+
+function diffPending(current, lastApplied) {
+  // empty lastApplied means we've never republished -- surface every set field
+  const baselineKeys = Object.keys(lastApplied);
+  const out = [];
+  for (const k of Object.keys(current)) {
+    const a = lastApplied[k];
+    const b = current[k];
+    if (!baselineKeys.length || a !== b) {
+      out.push({ key: k, label: PENDING_LABELS[k] || k, from: _fmtVal(k, a), to: _fmtVal(k, b) });
+    }
+  }
+  return out;
+}
+
+function renderPendingPanel(panel, diff) {
+  panel.innerHTML = '';
+  for (const row of diff) {
+    const r = document.createElement('div');
+    r.className = 'pending-row';
+    r.innerHTML = `<span class="pending-label">${row.label}</span><span class="pending-arrow">${row.from} → <strong>${row.to}</strong></span>`;
+    panel.appendChild(r);
+  }
+}
+
+function paintFeedFromReport(feed, report) {
+  feed.innerHTML = '';
+  for (const path of (report.uploaded || [])) feed.appendChild(feedRow('uploaded', '✓', path, 'uploaded'));
+  for (const path of (report.skipped  || [])) feed.appendChild(feedRow('skipped',  '--', path, 'already exists'));
+  for (const err  of (report.errors   || [])) feed.appendChild(feedRow('error',    '✗', err.file, err.error));
+}
+
+// ---------- status pill (bottom-right floating) ----------
+
+let _statusPill = null;
+function openStatusPill(text) {
+  if (!_statusPill) {
+    _statusPill = document.createElement('div');
+    _statusPill.className = 'status-pill';
+    document.body.appendChild(_statusPill);
+  }
+  _statusPill.textContent = text;
+  _statusPill.hidden = false;
+  return {
+    update: (t) => { if (_statusPill) _statusPill.textContent = t; },
+    close: () => { if (_statusPill) { _statusPill.hidden = true; } },
+  };
 }
