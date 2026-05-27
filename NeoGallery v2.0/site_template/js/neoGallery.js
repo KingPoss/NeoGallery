@@ -19,24 +19,19 @@ function getRandomImages(imageArray, count) {
     fetch("json/media.json")
       .then(response => response.json())
       .then(data => {
-        // media.json may be a bare array (legacy) or { config, posts } (v2.0+)
+        // legacy bare-array shape or current {config, posts}
         const galleryConfig = (data && !Array.isArray(data) && data.config) ? data.config : {};
         const originalImageArray = Array.isArray(data) ? data : (data.posts || []);
         const useThumbs = galleryConfig.useThumbnails !== false;
         const fullWidth = galleryConfig.fullImageWidth || null;
 
-        // Convert the tags string into an array of tags
         var tagArray = tags.split(',');
-
-        // Filter images that include at least one of the tags
         var imageArray = originalImageArray.filter(image => image.tags && image.tags.some(tag => tagArray.includes(tag)));
 
-        // For galleries with "random" tag, show only 6 random images
         if (tagArray.includes("random")) {
           imageArray = getRandomImages(imageArray, 6);
         }
 
-        // Clear the specific gallery (also drops the inline loader markup)
         galleryElement.innerHTML = '';
 
         for (var i = 0; i < imageArray.length; i++) {
@@ -49,7 +44,7 @@ function getRandomImages(imageArray, count) {
           img.src = useThumbs ? imgData.thumbnailSrc : imgData.fullSrc;
           if (!useThumbs && fullWidth) img.style.width = fullWidth + 'px';
 
-          // Closure to preserve imgData context
+          // closure so each click handler sees its own imgData
           (function(imgData) {
             img.onclick = function() {
               var modal = document.getElementById("myModal");
@@ -68,7 +63,6 @@ function getRandomImages(imageArray, count) {
               titleText.innerHTML = imgData.title;
               captionText.innerHTML = imgData.description;
 
-              // Load the image
               var newImage = new Image();
               newImage.src = imgData.fullSrc;
 
@@ -93,7 +87,7 @@ function getRandomImages(imageArray, count) {
           galleryElement.appendChild(container);
         }
 
-        // Modal close handlers (only needs to be set up once)
+        // wire modal close handlers once
         if (!window.modalHandlersInitialized) {
           var modal = document.getElementById("myModal");
           var span = document.getElementsByClassName("close")[0];
@@ -124,7 +118,7 @@ function getRandomImages(imageArray, count) {
     });
 };
 
-  // Reshuffle only the 'random' gallery — only wire up if the page actually has one
+  // reshuffle button only exists on random galleries
   var reshuffleEl = document.getElementById('reshuffle');
   if (reshuffleEl) {
     reshuffleEl.onclick = function() {

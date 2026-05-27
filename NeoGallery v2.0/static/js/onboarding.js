@@ -212,7 +212,7 @@ function renderInstallPrompt(body) {
     const h = document.createElement('h1'); h.textContent = 'Where on your site?';
     body.appendChild(h);
     const hint = document.createElement('p');
-    hint.innerHTML = "Pick a folder. Default is <code>NeoGallery</code>. You can rename it or move it deeper, e.g. <code>art/portfolio</code> or <code>my-gallery</code>.";
+    hint.innerHTML = "Pick a folder. Default is <code>NeoGallery</code>. You can rename it or nest it deeper, like <code>art/portfolio</code> or <code>my-gallery</code>.";
     body.appendChild(hint);
 
     const row = document.createElement('div'); row.className = 'form-row';

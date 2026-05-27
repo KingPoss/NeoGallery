@@ -13,9 +13,8 @@ def _bundled_templates() -> Path:
 
 
 def _template(name: str) -> Path:
-    # v2 owns its templates: cached copy in templates/ wins, otherwise pull from the bundled set.
-    # we deliberately don't fall back to v1's templates -- v1 used absolute paths like /css/... that
-    # break on installs nested under a subfolder (e.g. NG/) or on custom domains.
+    # cached templates/ copy wins, else fall through to the bundled set.
+    # v1's templates use absolute /css paths that break on nested/custom-domain installs.
     v2 = paths.TEMPLATES / name
     if v2.exists():
         return v2
@@ -90,8 +89,7 @@ _MODAL_LOADER_RE = re.compile(r'<img[^>]*\bid="loadingPlaceholder"[^>]*>(?:\s*</
 
 
 def _render_for_upload(local: Path) -> Path:
-    """read an HTML file from templates/, apply loader substitutions, write to a temp
-    file and return that path so the cached version on disk stays as authored."""
+    """render loader substitutions into a tempfile so the cached copy stays as authored."""
     import tempfile
     text = local.read_text(encoding="utf-8")
     rendered = apply_loader_substitutions(text)
@@ -103,9 +101,7 @@ def _render_for_upload(local: Path) -> Path:
 
 
 def apply_loader_substitutions(text: str) -> str:
-    # works on both placeholder-style templates and on already-rendered HTML pages
-    # (the latter happens because we cache rendered NeoGallery.html in templates/ and
-    # need to keep pushing it to Neocities with whatever loader the user currently picked)
+    # runs on raw templates and on already-rendered pages we re-push with a fresh loader
     g = gallery_loader_html()
     m = modal_loader_html()
     text = _GALLERY_LOADER_RE.sub(lambda _: g, text)
@@ -170,7 +166,6 @@ def _replace_section_in_art(old: str, new: str, link_title: str) -> None:
 
 
 def _push_site_files(extra: list[tuple[Path, str, str]] = None) -> None:
-    """upload tag list + art.html + the tag-page html(s) to neocities."""
     site = registry.site_host()
     if not site.is_configured():
         return
@@ -188,7 +183,7 @@ def create_tag(name: str, meta_desc: str, page_title: str, link_title: str, cove
     if any(t["name"] == name for t in tags):
         raise ValueError(f"Tag '{name}' already exists")
 
-    # system tags (e.g. 'random') don't get a tag page, navigation entry, or cover photo
+    # system tags like 'random' don't get a tag page, navigation entry, or cover photo
     if name in SYSTEM_TAGS:
         tag = {"name": name}
         tags.append(tag)

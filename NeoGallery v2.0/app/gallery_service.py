@@ -57,7 +57,7 @@ def add_art(
                 thumb_up = image_host.upload(thumb_local, kind="thumbnail", dest_name=thumb_local.name)
                 thumb_url, thumb_remote = thumb_up.url, thumb_up.remote_id
             else:
-                # no thumbnails — point the visitor at the full image
+                # no thumbnails -- point the visitor at the full image
                 thumb_url, thumb_remote = art_up.url, art_up.remote_id
 
             entry = {
@@ -131,7 +131,6 @@ def reorder(new_full_src_order: list[str]) -> None:
     media = storage.load_media()
     by_src = {e.get("fullSrc"): e for e in media}
     ordered = [by_src[s] for s in new_full_src_order if s in by_src]
-    # append anything that wasn't in the new order (defensive)
     for e in media:
         if e.get("fullSrc") not in new_full_src_order:
             ordered.append(e)

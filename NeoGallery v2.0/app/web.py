@@ -328,8 +328,6 @@ def create_app() -> Flask:
 
     @app.post("/api/site/republish")
     def site_republish():
-        # re-render & re-upload NeoGallery.html, every per-tag page, the chosen loader asset,
-        # and media.json (so the embedded visitor config block refreshes)
         report = installer.republish_site()
         return jsonify({
             "uploaded": report.uploaded,

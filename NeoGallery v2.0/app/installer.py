@@ -19,6 +19,21 @@ class InstallReport:
     errors: list[dict] = field(default_factory=list)
 
 
+# module scope so Settings can show the last republish errors after a navigation
+last_republish_report: InstallReport | None = None
+
+
+def _snapshot_gallery_state() -> dict:
+    cfg = config.get()
+    return {
+        "use_thumbnails": cfg.use_thumbnails,
+        "thumb_width": cfg.thumb_width,
+        "full_image_display_width": cfg.full_image_display_width,
+        "loading_image": cfg.loading_image,
+        "show_loader": cfg.show_loader,
+    }
+
+
 def test_neocities_connection() -> tuple[bool, str]:
     key = config.get().neocities.api_key
     if not key:
@@ -60,7 +75,6 @@ def _remote_path_for(rel: str) -> str:
 
 
 def _walk_template() -> list[tuple[Path, str]]:
-    """yields (local_path, remote_path) for every file we'd consider uploading."""
     out = []
     if not SITE_TEMPLATE.exists():
         return out
@@ -76,7 +90,6 @@ def _walk_template() -> list[tuple[Path, str]]:
 
 
 def _remote_inventory() -> set[str]:
-    """fetch every file path that already exists on the user's neocities site."""
     key = config.get().neocities.api_key
     if not key:
         return set()
@@ -145,17 +158,23 @@ def install_site_template(progress_cb: Callable[[str, str, str], None] | None = 
         if progress_cb:
             progress_cb(remote, "uploaded", "")
 
+    # treat a clean wizard install as the baseline for "what's applied"
+    if not report.errors:
+        config.get().last_applied_gallery_state = _snapshot_gallery_state()
+        config.commit()
+
     return report
 
 
-def republish_site() -> InstallReport:
-    """re-render and force-upload NeoGallery.html, every per-tag page, the chosen loader
-    asset, and media.json. unlike install_site_template, this overwrites existing files."""
+def republish_site(progress_cb: Callable[[str, str, str], None] | None = None) -> InstallReport:
+    """force-upload NeoGallery.html, tag pages, loader, and media.json (overwrites remote)."""
+    global last_republish_report
     from . import storage, tag_service
     report = InstallReport()
     key = config.get().neocities.api_key
     if not key:
         report.errors.append({"file": "(setup)", "error": "Neocities API key missing"})
+        last_republish_report = report
         return report
 
     n = config.get().neocities
@@ -164,13 +183,19 @@ def republish_site() -> InstallReport:
     json_dir = (n.json_dir or "").strip("/")
 
     def _try(remote: str, src: Path) -> None:
+        if progress_cb:
+            progress_cb(remote, "uploading", "")
         try:
             _raw_upload(src, remote, key)
             report.uploaded.append(remote)
+            if progress_cb:
+                progress_cb(remote, "uploaded", "")
         except Exception as e:
             report.errors.append({"file": remote, "error": str(e)})
+            if progress_cb:
+                progress_cb(remote, "error", str(e))
 
-    # 1) gallery index — render then upload
+    # 1) gallery index -- render then upload
     art_local = SITE_TEMPLATE / "NeoGallery.html"
     if art_local.exists():
         rendered = _render_if_template(art_local)
@@ -187,31 +212,36 @@ def republish_site() -> InstallReport:
         target = f"{tag_dir}/{tag['name']}.html" if tag_dir else f"{tag['name']}.html"
         _try(target, tmp)
 
-    # 3) loader asset (cheap — just always push the active one so renames/uploads land)
+    # 3) loader asset (cheap -- just always push the active one so renames/uploads land)
     if config.get().loading_image:
         loader_local = SITE_TEMPLATE / config.get().loading_image
         if loader_local.exists():
             target = f"{gallery}/{config.get().loading_image}" if gallery else config.get().loading_image
             _try(target, loader_local)
 
-    # 4) media.json — refresh embedded config block
+    # 4) media.json -- refresh embedded config block
     if paths.MEDIA_JSON.exists():
         target = f"{json_dir}/{config.get().media_json_name}" if json_dir else config.get().media_json_name
         _try(target, paths.MEDIA_JSON)
+
+    last_republish_report = report
+    # only snapshot on clean run; any error keeps the pending indicator up
+    if not report.errors:
+        config.get().last_applied_gallery_state = _snapshot_gallery_state()
+        config.commit()
 
     return report
 
 
 def _render_if_template(local: Path) -> Path:
-    """if local is a templated HTML in site_template/, apply loader substitutions and
-    return a tempfile path. otherwise pass through unchanged."""
+    """apply loader substitutions if local lives in site_template/, else pass through."""
     if local.suffix.lower() != ".html":
         return local
     try:
         local.relative_to(SITE_TEMPLATE)
     except ValueError:
         return local
-    # lazy import: tag_service imports config/storage which are fine, but avoid a top-level cycle
+    # lazy import: avoid a top-level cycle with tag_service
     from . import tag_service
     text = local.read_text(encoding="utf-8")
     rendered = tag_service.apply_loader_substitutions(text)
@@ -223,7 +253,6 @@ def _render_if_template(local: Path) -> Path:
 
 
 def _raw_upload(local: Path, remote: str, api_key: str) -> None:
-    """direct POST to neocities so we control the timeout and remote path."""
     target = remote.lstrip("/")
     with open(local, "rb") as f:
         r = requests.post(

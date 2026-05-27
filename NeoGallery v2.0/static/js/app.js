@@ -41,33 +41,53 @@ async function refreshHostPill() {
   try {
     const { config, hosts } = await api.get('/api/settings');
     const active = hosts.find(h => h.id === config.active_image_host);
-    document.getElementById('active-host-pill').textContent = active ? `→ ${active.name}` : '—';
-    // also apply the theme — otherwise it stays at the hardcoded HTML default until Settings is opened
+    document.getElementById('active-host-pill').textContent = active ? `→ ${active.name}` : '--';
+    // re-apply theme so we don't stay on the hardcoded default until Settings opens
     const theme = config.dark_mode ? 'dark' : 'light';
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('theme', theme);
-  } catch {}
+  } catch (e) { console.warn(e); }
 }
 window.refreshHostPill = refreshHostPill;
+
+async function refreshBrand() {
+  const el = document.getElementById('brand-name');
+  if (!el) return;
+  try {
+    const info = await api.get('/api/neocities/info');
+    if (info.ok && info.domain) {
+      const name = info.domain.endsWith('.neocities.org') ? info.domain.replace(/\.neocities\.org$/, '') : info.domain;
+      el.textContent = `${name}'s gallery`;
+      return;
+    }
+  } catch (e) { console.warn(e); }
+  el.textContent = 'Gallery';
+}
+window.refreshBrand = refreshBrand;
 
 window.addEventListener('hashchange', route);
 document.addEventListener('DOMContentLoaded', async () => {
   attachDropTarget();
   refreshHostPill();
+  refreshBrand();
 
-  // show onboarding wizard before anything else on first run
+  // first run: open onboarding before routing
   try {
     const { completed } = await api.get('/api/onboarding/status');
     if (!completed) {
       const m = await import('./onboarding.js');
       m.startOnboarding(() => {
         refreshHostPill();
+        refreshBrand();
         if (!location.hash) location.hash = '#home'; else route();
       });
       return;
     }
-  } catch {}
+  } catch (e) { console.warn(e); }
 
   if (!location.hash) location.hash = '#home';
   else route();
+
+  // fire after first render so a slow check never blocks the UI
+  import('./sync.js').then(m => m.checkSyncDrift());
 });
