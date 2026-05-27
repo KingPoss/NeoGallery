@@ -290,27 +290,6 @@ label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 
   cursor: zoom-in;
 }
 
-/* ---------- tags ---------- */
-.tag-grid {
-  display: grid; gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-}
-.tag-card {
-  background: var(--bg-elev); border: 1px solid var(--border);
-  border-radius: var(--radius); overflow: hidden;
-  cursor: pointer; transition: transform .15s, border-color .15s;
-  display: flex; flex-direction: column;
-}
-.tag-card:hover { border-color: var(--accent); transform: translateY(-2px); }
-.tag-card .cover { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: var(--bg-elev-2); }
-.tag-card .cover-empty { width: 100%; aspect-ratio: 16/9; background: linear-gradient(135deg, var(--bg-elev-2), var(--border)); display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 22px; }
-.tag-card .meta { padding: 10px 12px; }
-.tag-card .name { font-weight: 600; }
-.tag-card .actions { display: flex; gap: 4px; padding: 0 8px 8px; justify-content: flex-end; }
-
-.tag-detail-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-.tag-detail-head .back { cursor: pointer; }
-
 /* ---------- settings ---------- */
 .settings-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
@@ -327,6 +306,12 @@ label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 
 }
 .toast.error { border-color: var(--danger); }
 .toast.success { border-color: var(--success); }
+.toast.action {
+  min-width: 280px; max-width: 360px;
+  border-color: var(--accent);
+}
+.toast.action strong { color: var(--text); font-size: 13px; }
+.toast.action .muted { font-size: 12px; line-height: 1.4; }
 @keyframes slidein { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ---------- empty state ---------- */
@@ -365,6 +350,48 @@ details.settings-advanced[open] > summary { margin-bottom: 8px; }
   display: inline-block; vertical-align: middle;
   max-height: 28px; margin-left: 8px;
   background: var(--bg-elev-2); padding: 2px 4px; border-radius: 4px;
+}
+
+/* pending-changes indicator (lives next to the Apply button) */
+.pending-indicator-wrap {
+  font-size: 13px; color: var(--text-dim);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.pending-indicator-wrap .pending-dot {
+  color: var(--accent); font-size: 14px; line-height: 1;
+}
+.pending-indicator-wrap .pending-q {
+  color: var(--accent); text-decoration: underline; cursor: pointer; margin-left: 2px;
+}
+.pending-indicator-wrap .pending-q:hover { color: var(--accent-hover); }
+
+.pending-panel {
+  margin-top: 10px; padding: 10px 12px;
+  background: var(--bg-elev-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 12px;
+}
+.pending-row { display: flex; justify-content: space-between; gap: 12px; }
+.pending-row .pending-label { color: var(--text-dim); }
+.pending-row .pending-arrow { color: var(--text); font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+
+/* bottom-right floating status pill (auto-regen progress, etc.) */
+.status-pill {
+  position: fixed; bottom: 16px; right: 16px; z-index: 80;
+  background: var(--bg-elev); color: var(--text);
+  border: 1px solid var(--accent); border-radius: 999px;
+  padding: 8px 14px; font-size: 13px;
+  box-shadow: var(--shadow);
+  display: flex; align-items: center; gap: 6px;
+}
+.status-pill::before {
+  content: ''; width: 8px; height: 8px; border-radius: 999px;
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 /* ---------- onboarding wizard ---------- */

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_from_directory
 
-from . import config, gallery_service, installer, paths, storage, tag_service
+from . import config, gallery_service, installer, paths, storage, sync, tag_service
 from .hosts import registry
 
 
@@ -46,8 +46,6 @@ def create_app() -> Flask:
 
     @app.post("/api/media")
     def upload_media():
-        # multipart: files[] + a meta JSON field with parallel array of {title, description, tags}
-        import json as _json
         files = request.files.getlist("files")
         meta_raw = request.form.get("meta", "[]")
         try:
@@ -104,6 +102,40 @@ def create_app() -> Flask:
     def regen():
         n = gallery_service.regenerate_thumbnails()
         return jsonify({"regenerated": n})
+
+    @app.get("/api/media/regenerate-thumbs/stream")
+    def regen_stream():
+        q: queue.Queue = queue.Queue()
+
+        def cb(p):
+            q.put({
+                "file": p.filename,
+                "status": "uploaded" if p.status == "done" else p.status,
+                "note": p.error or "",
+                "index": p.index,
+                "total": p.total,
+            })
+
+        def runner():
+            try:
+                count = gallery_service.regenerate_thumbnails(on_progress=cb)
+                q.put({"done": True, "count": count})
+            except Exception as e:
+                q.put({"done": True, "fatal": str(e)})
+
+        threading.Thread(target=runner, daemon=True).start()
+
+        def stream():
+            while True:
+                evt = q.get()
+                yield f"data: {_json.dumps(evt)}\n\n"
+                if evt.get("done"):
+                    return
+
+        return Response(stream(), mimetype="text/event-stream", headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        })
 
     # ---------- tags ----------
     @app.get("/api/tags")
@@ -303,6 +335,87 @@ def create_app() -> Flask:
             "uploaded": report.uploaded,
             "skipped": report.skipped,
             "errors": report.errors,
+        })
+
+    @app.get("/api/site/republish/stream")
+    def site_republish_stream():
+        q: queue.Queue = queue.Queue()
+
+        def cb(file: str, status: str, note: str = "") -> None:
+            q.put({"file": file, "status": status, "note": note})
+
+        def runner():
+            try:
+                report = installer.republish_site(progress_cb=cb)
+                q.put({"done": True, "summary": {
+                    "uploaded": len(report.uploaded),
+                    "errors": len(report.errors),
+                }})
+            except Exception as e:
+                q.put({"done": True, "fatal": str(e)})
+
+        threading.Thread(target=runner, daemon=True).start()
+
+        def stream():
+            while True:
+                evt = q.get()
+                yield f"data: {_json.dumps(evt)}\n\n"
+                if evt.get("done"):
+                    return
+
+        return Response(stream(), mimetype="text/event-stream", headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        })
+
+    @app.get("/api/sync/state")
+    def sync_state():
+        return jsonify(sync.remote_state())
+
+    @app.get("/api/sync/stream")
+    def sync_stream():
+        q: queue.Queue = queue.Queue()
+
+        def cb(file: str, status: str, note: str = "") -> None:
+            q.put({"file": file, "status": status, "note": note})
+
+        def runner():
+            try:
+                report = sync.sync_from_neocities(progress_cb=cb)
+                q.put({"done": True, "summary": {
+                    "pulled": len(report.pulled),
+                    "skipped": len(report.skipped),
+                    "errors": len(report.errors),
+                }})
+            except Exception as e:
+                q.put({"done": True, "fatal": str(e)})
+
+        threading.Thread(target=runner, daemon=True).start()
+
+        def stream():
+            while True:
+                evt = q.get()
+                yield f"data: {_json.dumps(evt)}\n\n"
+                if evt.get("done"):
+                    return
+
+        return Response(stream(), mimetype="text/event-stream", headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        })
+
+    @app.get("/api/site/republish/last")
+    def site_republish_last():
+        # last result from in-process memory (cleared on app restart) -- used by Settings
+        # to restore a feed when the user navigates back after a mid-flight republish
+        r = installer.last_republish_report
+        if r is None:
+            return jsonify({"present": False})
+        return jsonify({
+            "present": True,
+            "uploaded": r.uploaded,
+            "skipped": r.skipped,
+            "errors": r.errors,
         })
 
     @app.get("/api/site/install/stream")

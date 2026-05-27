@@ -14,7 +14,7 @@ def _bundled_templates() -> Path:
 
 def _template(name: str) -> Path:
     # v2 owns its templates: cached copy in templates/ wins, otherwise pull from the bundled set.
-    # we deliberately don't fall back to v1's templates — v1 used absolute paths like /css/... that
+    # we deliberately don't fall back to v1's templates -- v1 used absolute paths like /css/... that
     # break on installs nested under a subfolder (e.g. NG/) or on custom domains.
     v2 = paths.TEMPLATES / name
     if v2.exists():
@@ -23,11 +23,6 @@ def _template(name: str) -> Path:
     if src.exists():
         v2.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
     return v2
-
-
-def _gallery_path(filename: str) -> str:
-    n = config.get().neocities
-    return f"{n.gallery_dir}/{filename}" if n.gallery_dir else filename
 
 
 def _tag_path(filename: str) -> str:
@@ -299,7 +294,7 @@ def delete_tag(name: str) -> None:
     site = registry.site_host()
 
     if name in SYSTEM_TAGS:
-        # no HTML, no nav entry, no cover — just push the updated JSON files
+        # no HTML, no nav entry, no cover -- just push the updated JSON files
         if site.is_configured():
             site.upload(paths.TAGS_JSON, kind="json", dest_name=config.get().tag_list_json_name)
             site.upload(paths.MEDIA_JSON, kind="json", dest_name=config.get().media_json_name)

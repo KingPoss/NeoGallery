@@ -21,8 +21,3 @@ export function confirmDialog({ title = 'Confirm', message = 'Are you sure?', ok
     openModal('confirm-modal');
   });
 }
-
-// turn a comma-separated string into a tag list
-export function parseTagInput(str) {
-  return (str || '').split(',').map(s => s.trim()).filter(Boolean);
-}

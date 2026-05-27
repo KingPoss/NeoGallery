@@ -59,11 +59,6 @@
   color: orange;
 }
 
-/* Generic clickable class */
-.clickable {
-  cursor: pointer;
-}
-
 /* Modal background overlay */
 .modal {
   display: none; 
